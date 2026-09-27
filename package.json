@@ -1,0 +1,25 @@
+{
+  "name": "querymind",
+  "version": "1.0.0",
+  "description": "QueryMind — NL to PostgreSQL Engine with 6-step reasoning trace",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test tests/**/*.test.js"
+  },
+  "keywords": [
+    "nl-to-sql",
+    "querymind",
+    "postgresql",
+    "llm",
+    "gemini",
+    "groq"
+  ],
+  "author": "QueryMind Team",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "sql.js": "^1.12.0"
+  }
+}
