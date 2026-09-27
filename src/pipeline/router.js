@@ -180,8 +180,13 @@ async function runPipeline(question) {
     if (!liveProvider) liveProvider = sqlRes.provider;
   }
 
+  const isDirectSql = /^(SELECT|WITH)\b/i.test(q);
   if (!rawSql) {
-    rawSql = preset ? preset.sql : `SELECT * FROM ${schemaData.tables[0] || 'customers'} LIMIT 10;`;
+    if (isDirectSql) {
+      rawSql = q;
+    } else {
+      rawSql = preset ? preset.sql : `SELECT * FROM ${schemaData.tables[0] || 'customers'} LIMIT 10;`;
+    }
   }
 
   // Security check on generated SQL

@@ -308,6 +308,11 @@ function findPreset(question) {
   if (!question || typeof question !== 'string') return null;
   const q = question.toLowerCase().trim();
 
+  // If question is already a direct SQL query, treat as custom query
+  if (q.startsWith('select') || q.startsWith('with')) {
+    return null;
+  }
+
   // 1. Direct exact or normalized match
   for (const preset of PRESETS) {
     if (q === preset.question.toLowerCase().trim()) {
@@ -322,7 +327,7 @@ function findPreset(question) {
   if (q.includes('churn') && (q.includes('enterprise') || q.includes('30 day') || q.includes('30-day'))) {
     return PRESETS.find(p => p.id === 'churn');
   }
-  if ((q.includes('avg mrr') || q.includes('average mrr')) || (q.includes('mrr') && q.includes('plan'))) {
+  if ((q.includes('avg mrr') || q.includes('average mrr')) || (q.includes('mrr') && (q.includes('plan tier') || q.includes('by plan') || q.includes('by tier')))) {
     return PRESETS.find(p => p.id === 'mrr');
   }
   if (q.includes('trial') && (q.includes('3 order') || q.includes('3+') || q.includes('more than 3'))) {
