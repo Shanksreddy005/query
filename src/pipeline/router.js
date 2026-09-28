@@ -9,6 +9,7 @@
 const { callGemini } = require('../providers/gemini');
 const { callGroq } = require('../providers/groq');
 const { findPreset } = require('./presets');
+const { parseNaturalLanguage } = require('./fallback_parser');
 const { buildIntentPrompt, parseIntentResponse } = require('./step1_intent');
 const { buildSchemaMapperPrompt, parseSchemaMapperResponse } = require('./step2_schema');
 const { buildJoinPlannerPrompt, parseJoinPlannerResponse } = require('./step3_planner');
@@ -59,6 +60,7 @@ async function runPipeline(question) {
   }
 
   const preset = findPreset(q);
+  const fallbackParsed = (!preset) ? parseNaturalLanguage(q) : null;
   let liveProvider = null;
 
   // Track the 6 user-facing process trace steps
@@ -91,15 +93,27 @@ async function runPipeline(question) {
   }
 
   if (!intentData) {
-    // Fallback to preset or generic
-    intentData = preset ? preset.intent : {
-      entity: 'customers',
-      metric: 'all matching records',
-      filters: [],
-      time_range: null,
-      sort: null,
-      limit: 10
-    };
+    if (preset) {
+      intentData = preset.intent;
+    } else if (fallbackParsed) {
+      intentData = {
+        entity: fallbackParsed.entity,
+        metric: fallbackParsed.metric,
+        filters: fallbackParsed.filters,
+        time_range: null,
+        sort: null,
+        limit: null
+      };
+    } else {
+      intentData = {
+        entity: 'customers',
+        metric: 'all matching records',
+        filters: [],
+        time_range: null,
+        sort: null,
+        limit: 10
+      };
+    }
   }
 
   const filtersDesc = intentData.filters && intentData.filters.length > 0
@@ -127,11 +141,21 @@ async function runPipeline(question) {
   }
 
   if (!schemaData) {
-    schemaData = preset ? preset.schemaMapping : {
-      tables: [intentData.entity || 'customers'],
-      joins: [],
-      reason_for_each_join: 'Direct table query'
-    };
+    if (preset) {
+      schemaData = preset.schemaMapping;
+    } else if (fallbackParsed) {
+      schemaData = {
+        tables: fallbackParsed.tables,
+        joins: fallbackParsed.joins,
+        reason_for_each_join: fallbackParsed.joinPlan
+      };
+    } else {
+      schemaData = {
+        tables: [intentData.entity || 'customers'],
+        joins: [],
+        reason_for_each_join: 'Direct table query'
+      };
+    }
   }
 
   const tablesDesc = schemaData.tables.join(', ');
@@ -159,7 +183,13 @@ async function runPipeline(question) {
   }
 
   if (!joinPlan) {
-    joinPlan = preset ? preset.joinPlan : `Execute structured query over ${tablesDesc} with applied filters and metrics.`;
+    if (preset) {
+      joinPlan = preset.joinPlan;
+    } else if (fallbackParsed) {
+      joinPlan = fallbackParsed.joinPlan;
+    } else {
+      joinPlan = `Execute structured query over ${tablesDesc} with applied filters and metrics.`;
+    }
   }
 
   steps[2].detail = joinPlan;
@@ -184,8 +214,12 @@ async function runPipeline(question) {
   if (!rawSql) {
     if (isDirectSql) {
       rawSql = q;
+    } else if (preset) {
+      rawSql = preset.sql;
+    } else if (fallbackParsed) {
+      rawSql = fallbackParsed.sql;
     } else {
-      rawSql = preset ? preset.sql : `SELECT * FROM ${schemaData.tables[0] || 'customers'} LIMIT 10;`;
+      rawSql = `SELECT * FROM ${schemaData.tables[0] || 'customers'} LIMIT 10;`;
     }
   }
 
@@ -293,7 +327,13 @@ async function runPipeline(question) {
   }
 
   if (!insightText) {
-    insightText = preset ? preset.insight : `Analysis of the query returned ${results?.rowCount || 0} records across ${schemaData.tables.join(', ')}. Key metrics indicate consistent distribution according to configured plan tiers.`;
+    if (preset) {
+      insightText = preset.insight;
+    } else if (fallbackParsed && results && results.rows && results.rows.length > 0) {
+      insightText = fallbackParsed.insightGenerator(results.rows);
+    } else {
+      insightText = `Analysis of the query returned ${results?.rowCount || 0} records across ${schemaData.tables.join(', ')}. Key metrics indicate consistent distribution according to configured plan tiers.`;
+    }
   }
 
   steps[5].detail = 'Surfacing the key business signal and actionable takeaway from the returned data';
