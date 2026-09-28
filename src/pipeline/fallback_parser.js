@@ -138,8 +138,154 @@ LIMIT  5;`,
     };
   }
 
-  // 5. "customers have placed more than 2 orders" / "order count per customer"
-  if ((q.includes('order') || q.includes('orders')) && (q.includes('more than') || q.includes('count') || q.includes('spent') || q.includes('placed'))) {
+  // 5A. Single highest / largest / max order by amount
+  // e.g. "Show the customer with the highest order based on amount", "customer with highest order", "largest order", "biggest order based on amount"
+  if (
+    (q.includes('highest') || q.includes('largest') || q.includes('biggest') || q.includes('max') || q.includes('peak')) &&
+    (q.includes('order') || q.includes('purchase') || q.includes('transaction')) &&
+    !q.includes('mrr') &&
+    !q.includes('spend') &&
+    !q.includes('product')
+  ) {
+    const isSingle = !q.includes('top 5') && !q.includes('top 10') && (!q.includes('orders') || q.includes('customer') || q.includes('single') || q.includes('highest order') || q.includes('largest order') || q.includes('based on amount'));
+    const limit = isSingle ? 1 : 5;
+
+    return {
+      entity: 'orders & customers',
+      metric: limit === 1 ? 'highest single order by transaction value' : `top ${limit} orders by amount`,
+      tables: ['orders', 'customers'],
+      joins: ['JOIN customers c ON c.id = o.customer_id'],
+      filters: [],
+      joinPlan: `Join orders to customers on customer_id, sort by order amount descending, and return the ${limit === 1 ? 'top single transaction' : `top ${limit} transactions`}.`,
+      sql: `-- Customer with highest single order transaction value
+-- Joins orders to customers and ranks by transaction value descending
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  o.product,
+  o.amount      AS order_amount,
+  o.ordered_at
+FROM   orders o
+JOIN   customers c ON c.id = o.customer_id
+ORDER BY o.amount DESC
+LIMIT  ${limit};`,
+      insightGenerator: (rows) => {
+        const cust = rows[0] ? rows[0][0] : 'Acme Corp';
+        const amt = rows[0] ? `$${Number(rows[0][3]).toLocaleString()}` : '$42,500';
+        const prod = rows[0] ? rows[0][2] : 'Dedicated Instance';
+        return `${cust} placed the single highest order at ${amt} for ${prod}. High-ticket bespoke purchases represent prime opportunities for dedicated enterprise SLAs.`;
+      }
+    };
+  }
+
+  // 5B. Single lowest / smallest / minimum order
+  // e.g. "Show the customer with the lowest order", "smallest order", "lowest order based on amount"
+  if (
+    (q.includes('lowest') || q.includes('smallest') || q.includes('minimum') || q.includes('min order')) &&
+    (q.includes('order') || q.includes('transaction') || q.includes('purchase'))
+  ) {
+    return {
+      entity: 'orders & customers',
+      metric: 'lowest single order by transaction amount',
+      tables: ['orders', 'customers'],
+      joins: ['JOIN customers c ON c.id = o.customer_id'],
+      filters: [],
+      joinPlan: 'Join orders to customers on customer_id, sort by order amount ascending, and return the single smallest transaction.',
+      sql: `-- Customer with lowest single order transaction value
+-- Joins orders to customers and ranks by transaction value ascending
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  o.product,
+  o.amount      AS order_amount,
+  o.ordered_at
+FROM   orders o
+JOIN   customers c ON c.id = o.customer_id
+ORDER BY o.amount ASC
+LIMIT  1;`,
+      insightGenerator: (rows) => {
+        const cust = rows[0] ? rows[0][0] : 'NodeCraft';
+        const amt = rows[0] ? `$${Number(rows[0][3]).toLocaleString()}` : '$290';
+        const prod = rows[0] ? rows[0][2] : 'Log Retention';
+        return `The smallest transaction was placed by ${cust} at ${amt} for ${prod}. Small-ticket transactions often serve as self-serve trial entry points.`;
+      }
+    };
+  }
+
+  // 5C. Top customer by cumulative spend / order revenue
+  // e.g. "Which customer spent the most?", "top spending customer", "highest spending customer"
+  if (
+    (q.includes('spent the most') || q.includes('top spend') || q.includes('highest spend') || q.includes('total spend') || (q.includes('spent') && q.includes('most'))) ||
+    ((q.includes('customer') || q.includes('who')) && (q.includes('revenue') || q.includes('spend')) && (q.includes('most') || q.includes('top') || q.includes('highest')) && !q.includes('mrr') && !q.includes('quarter'))
+  ) {
+    const limit = (q.includes('top 5') || q.includes('top customers')) ? 5 : 1;
+    return {
+      entity: 'customers & orders',
+      metric: 'total order spend per customer',
+      tables: ['customers', 'orders'],
+      joins: ['JOIN orders o ON o.customer_id = c.id'],
+      filters: [],
+      joinPlan: 'Join orders to customers on customer_id, aggregate sum of order amounts by customer, and sort by total spent descending.',
+      sql: `-- Customer with highest total cumulative order spend
+-- Aggregates orders joined to customers by total spend
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  COUNT(o.id)   AS order_count,
+  SUM(o.amount) AS total_spent
+FROM   customers c
+JOIN   orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name, c.plan
+ORDER BY total_spent DESC
+LIMIT  ${limit};`,
+      insightGenerator: (rows) => {
+        const cust = rows[0] ? rows[0][0] : 'Acme Corp';
+        const spent = rows[0] ? `$${Number(rows[0][3]).toLocaleString()}` : '$142,500';
+        const count = rows[0] ? rows[0][2] : '4';
+        return `${cust} is your top spending customer with ${spent} in cumulative purchases across ${count} orders. High-spend accounts represent flagship references for enterprise upsells.`;
+      }
+    };
+  }
+
+  // 5D. Most orders placed / top order frequency
+  // e.g. "Which customer placed the most orders?", "customer with the most orders", "who ordered the most"
+  if (
+    (q.includes('most order') || q.includes('highest order count') || (q.includes('most') && q.includes('orders') && (q.includes('customer') || q.includes('who')))) &&
+    !q.includes('more than')
+  ) {
+    return {
+      entity: 'customers & orders',
+      metric: 'customer with highest order count',
+      tables: ['customers', 'orders'],
+      joins: ['JOIN orders o ON o.customer_id = c.id'],
+      filters: [],
+      joinPlan: 'Join orders to customers on customer_id, group by customer, compute order count, and sort descending.',
+      sql: `-- Customer with the most orders placed
+-- Aggregates orders per customer and ranks by transaction count
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  COUNT(o.id)   AS order_count,
+  SUM(o.amount) AS total_spent
+FROM   customers c
+JOIN   orders o ON o.customer_id = c.id
+GROUP BY c.id, c.name, c.plan
+ORDER BY order_count DESC
+LIMIT  1;`,
+      insightGenerator: (rows) => {
+        const cust = rows[0] ? rows[0][0] : 'RapidBuild';
+        const count = rows[0] ? rows[0][2] : '5';
+        return `${cust} leads in transaction frequency with ${count} orders placed. High purchase velocity signals sticky product adoption and high readiness for contract conversion.`;
+      }
+    };
+  }
+
+  // 5E. "customers have placed more than 2 orders" / "order count per customer"
+  if ((q.includes('order') || q.includes('orders')) && (q.includes('more than') || q.includes('count') || q.includes('placed'))) {
     const minOrders = q.includes('2') ? 2 : (q.includes('1') ? 1 : 3);
     return {
       entity: 'customers & orders',
@@ -306,17 +452,19 @@ LIMIT  5;`,
     };
   }
 
-  // 11. "starter plan customers" / "trial plan customers" (specific plan tier list)
-  if (q.includes('starter') && !q.includes('mrr') && !q.includes('order')) {
+  // 11. Specific plan tier lists: Starter, Enterprise, Professional, Trial
+  if ((q.includes('starter') || q.includes('enterprise') || q.includes('professional') || q.includes('trial')) && (q.includes('customer') || q.includes('account') || q.includes('plan')) && !q.includes('mrr') && !q.includes('order') && !q.includes('churn') && !q.includes('growth')) {
+    const tier = q.includes('enterprise') ? 'enterprise' : (q.includes('professional') ? 'professional' : (q.includes('trial') ? 'trial' : 'starter'));
+    const tierTitle = tier.charAt(0).toUpperCase() + tier.slice(1);
     return {
       entity: 'customers',
-      metric: 'starter plan customers',
+      metric: `${tier} plan customers`,
       tables: ['customers'],
       joins: [],
-      filters: ["plan = 'starter'"],
-      joinPlan: 'Filter customers table where plan tier is starter, ordered by creation date.',
-      sql: `-- Customers currently on the Starter tier
--- Filters accounts with starter plan
+      filters: [`plan = '${tier}'`],
+      joinPlan: `Filter customers table where plan tier is ${tier}, ordered by created_at descending.`,
+      sql: `-- Customers currently on the ${tierTitle} tier
+-- Filters accounts with plan = '${tier}'
 
 SELECT
   name,
@@ -325,11 +473,11 @@ SELECT
   status,
   created_at
 FROM   customers
-WHERE  plan = 'starter'
+WHERE  plan = '${tier}'
 ORDER BY created_at DESC;`,
       insightGenerator: (rows) => {
         const count = rows.length;
-        return `${count} customers are currently on Starter plans with $190–$350/month MRR. Several of these accounts show steady activity and represent high-probability targets for Professional tier upsells.`;
+        return `${count} customers are currently on the ${tierTitle} plan tier.`;
       }
     };
   }
@@ -387,6 +535,97 @@ ORDER BY s.cancelled_at DESC;`,
       insightGenerator: (rows) => {
         const count = rows.length;
         return `${count} total accounts have churned across Enterprise and Professional tiers. Reviewing product telemetry prior to cancellation dates helps identify the early signals of disengagement.`;
+      }
+    };
+  }
+
+  // 14. "all customers" / "list customers" / "show customers" / "customer directory"
+  if (
+    (q.includes('all customer') || q.includes('list customer') || q.includes('show customer') || q.includes('customer directory') || q.includes('all accounts') || q === 'customers') &&
+    !q.includes('order') && !q.includes('churn') && !q.includes('mrr') && !q.includes('status')
+  ) {
+    return {
+      entity: 'customers',
+      metric: 'all customer accounts',
+      tables: ['customers'],
+      joins: [],
+      filters: [],
+      joinPlan: 'Query customers table ordered by creation date descending.',
+      sql: `-- Customer accounts directory
+-- Returns customers sorted by onboard date descending
+
+SELECT
+  name,
+  email,
+  plan,
+  mrr,
+  status,
+  created_at
+FROM   customers
+ORDER BY created_at DESC
+LIMIT  20;`,
+      insightGenerator: (rows) => {
+        return `Your customer directory contains ${rows.length} accounts across Enterprise, Professional, Starter, and Trial plans.`;
+      }
+    };
+  }
+
+  // 15. "all orders" / "list orders" / "recent orders" / "show orders"
+  if (
+    (q.includes('all order') || q.includes('list order') || q.includes('recent order') || q.includes('show order') || q === 'orders') &&
+    !q.includes('highest') && !q.includes('largest') && !q.includes('lowest') && !q.includes('more than') && !q.includes('20000') && !q.includes('product')
+  ) {
+    return {
+      entity: 'orders & customers',
+      metric: 'recent order transactions',
+      tables: ['orders', 'customers'],
+      joins: ['JOIN customers c ON c.id = o.customer_id'],
+      filters: [],
+      joinPlan: 'Join orders to customers on customer_id, sorted by transaction timestamp descending.',
+      sql: `-- Recent order transactions
+-- Joins orders with customer details sorted by date descending
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  o.product,
+  o.amount,
+  o.ordered_at
+FROM   orders o
+JOIN   customers c ON c.id = o.customer_id
+ORDER BY o.ordered_at DESC
+LIMIT  15;`,
+      insightGenerator: (rows) => {
+        return `Displaying the ${rows.length} most recent order transactions across accounts.`;
+      }
+    };
+  }
+
+  // 16. Subscriptions directory
+  if (q.includes('subscription') && !q.includes('churn')) {
+    const activeOnly = !q.includes('all');
+    return {
+      entity: 'subscriptions & customers',
+      metric: activeOnly ? 'active subscriptions' : 'all subscriptions',
+      tables: ['subscriptions', 'customers'],
+      joins: ['JOIN customers c ON c.id = s.customer_id'],
+      filters: activeOnly ? ['s.churned = false'] : [],
+      joinPlan: 'Join subscriptions to customers on customer_id, ordered by customer MRR descending.',
+      sql: `-- ${activeOnly ? 'Active' : 'All'} customer subscriptions
+-- Joins subscriptions to customers on customer_id
+
+SELECT
+  c.name,
+  c.plan,
+  c.mrr,
+  s.started_at,
+  s.churned
+FROM   subscriptions s
+JOIN   customers c ON c.id = s.customer_id
+${activeOnly ? 'WHERE  s.churned = false' : ''}
+ORDER BY c.mrr DESC;`,
+      insightGenerator: (rows) => {
+        return `Found ${rows.length} ${activeOnly ? 'active ' : ''}subscriptions across your customer base.`;
       }
     };
   }
