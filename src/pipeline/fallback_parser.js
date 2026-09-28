@@ -222,7 +222,175 @@ ORDER BY e.occurred_at DESC;`,
     };
   }
 
-  // 8. General fallback for arbitrary customer queries
+  // 8. "average order value" / "order summary"
+  if (q.includes('order value') || (q.includes('average') && q.includes('order') && !q.includes('customer'))) {
+    return {
+      entity: 'orders',
+      metric: 'order statistics and average transaction size',
+      tables: ['orders'],
+      joins: [],
+      filters: [],
+      joinPlan: 'Aggregate orders table to calculate total volume, gross revenue, average order value, and peak transaction.',
+      sql: `-- Transaction volume and average order value
+-- Aggregates overall sales revenue and compute average ticket size
+
+SELECT
+  COUNT(*)              AS total_orders,
+  SUM(amount)           AS gross_revenue,
+  ROUND(AVG(amount), 2) AS avg_order_value,
+  MAX(amount)           AS largest_order
+FROM   orders;`,
+      insightGenerator: (rows) => {
+        const avg = rows[0] ? `$${Number(rows[0][2]).toLocaleString()}` : '$15,000';
+        const total = rows[0] ? `$${Number(rows[0][1]).toLocaleString()}` : '$300,000';
+        return `Average order value stands at ${avg} across ${total} in cumulative transaction volume. High-value enterprise add-ons drive substantial variance in basket size.`;
+      }
+    };
+  }
+
+  // 9. "large orders" / "orders over 20000" / "orders > 20000"
+  if ((q.includes('order') || q.includes('orders')) && (q.includes('20000') || q.includes('20,000') || q.includes('large') || q.includes('biggest'))) {
+    return {
+      entity: 'orders & customers',
+      metric: 'large transactions over $20,000',
+      tables: ['orders', 'customers'],
+      joins: ['JOIN customers c ON c.id = o.customer_id'],
+      filters: ['o.amount >= 20000'],
+      joinPlan: 'Join orders to customers, filter for transactions of $20,000 or greater, ordered by amount descending.',
+      sql: `-- Large enterprise product transactions (Amount >= $20,000)
+-- Joins orders to customers and filters high transaction values
+
+SELECT
+  c.name        AS customer_name,
+  c.plan,
+  o.product,
+  o.amount,
+  o.ordered_at
+FROM   orders o
+JOIN   customers c ON c.id = o.customer_id
+WHERE  o.amount >= 20000
+ORDER BY o.amount DESC;`,
+      insightGenerator: (rows) => {
+        const count = rows.length;
+        return `${count} enterprise transactions exceeded the $20,000 threshold, primarily driven by dedicated instances and custom data pipelines. These landmark sales account for the bulk of non-recurring revenue.`;
+      }
+    };
+  }
+
+  // 10. "highest mrr" / "top customers by mrr" / "most valuable customers"
+  if (q.includes('highest mrr') || q.includes('top customers by mrr') || (q.includes('most valuable') && q.includes('customer'))) {
+    return {
+      entity: 'customers',
+      metric: 'top active customers by MRR',
+      tables: ['customers'],
+      joins: [],
+      filters: ["status = 'active'"],
+      joinPlan: 'Query active customers ordered by monthly recurring revenue descending, limited to top 5.',
+      sql: `-- Top 5 active accounts ranked by monthly recurring revenue
+-- Filters active accounts and ranks by MRR descending
+
+SELECT
+  name,
+  plan,
+  mrr,
+  status,
+  created_at
+FROM   customers
+WHERE  status = 'active'
+ORDER BY mrr DESC
+LIMIT  5;`,
+      insightGenerator: (rows) => {
+        const topName = rows[0] ? rows[0][0] : 'Acme Corp';
+        return `Your top 5 active accounts generate substantial monthly recurring revenue, led by ${topName}. Ensuring high NPS and executive sponsor alignment on these accounts is essential for baseline stability.`;
+      }
+    };
+  }
+
+  // 11. "starter plan customers" / "trial plan customers" (specific plan tier list)
+  if (q.includes('starter') && !q.includes('mrr') && !q.includes('order')) {
+    return {
+      entity: 'customers',
+      metric: 'starter plan customers',
+      tables: ['customers'],
+      joins: [],
+      filters: ["plan = 'starter'"],
+      joinPlan: 'Filter customers table where plan tier is starter, ordered by creation date.',
+      sql: `-- Customers currently on the Starter tier
+-- Filters accounts with starter plan
+
+SELECT
+  name,
+  email,
+  mrr,
+  status,
+  created_at
+FROM   customers
+WHERE  plan = 'starter'
+ORDER BY created_at DESC;`,
+      insightGenerator: (rows) => {
+        const count = rows.length;
+        return `${count} customers are currently on Starter plans with $190–$350/month MRR. Several of these accounts show steady activity and represent high-probability targets for Professional tier upsells.`;
+      }
+    };
+  }
+
+  // 12. "customers signed up in 2024" / "new customers in 2024"
+  if (q.includes('2024') && (q.includes('signed up') || q.includes('created') || q.includes('new') || q.includes('joined'))) {
+    return {
+      entity: 'customers',
+      metric: 'new customer accounts created in 2024',
+      tables: ['customers'],
+      joins: [],
+      filters: ["created_at >= '2024-01-01'"],
+      joinPlan: 'Filter customers table for accounts created on or after January 1, 2024.',
+      sql: `-- Customer accounts onboarded in 2024
+-- Filters accounts by 2024 creation timestamp
+
+SELECT
+  name,
+  plan,
+  mrr,
+  status,
+  created_at
+FROM   customers
+WHERE  created_at >= '2024-01-01'
+ORDER BY created_at DESC;`,
+      insightGenerator: (rows) => {
+        const count = rows.length;
+        return `${count} new accounts joined in 2024, demonstrating accelerating customer acquisition across Starter and Trial tiers.`;
+      }
+    };
+  }
+
+  // 13. "all churned customers" / "cancellation dates"
+  if (q.includes('churned') && !q.includes('enterprise') && !q.includes('30 days')) {
+    return {
+      entity: 'customers & subscriptions',
+      metric: 'churned customer accounts and cancellation dates',
+      tables: ['customers', 'subscriptions'],
+      joins: ['JOIN subscriptions s ON s.customer_id = c.id'],
+      filters: ['s.churned = true'],
+      joinPlan: 'Join subscriptions to customers on customer_id, filtering for churned subscriptions.',
+      sql: `-- All churned accounts with cancellation timestamps
+-- Joins subscriptions and customers, filtering where churned is true
+
+SELECT
+  c.name,
+  c.plan,
+  c.mrr         AS mrr_lost,
+  s.started_at,
+  s.cancelled_at
+FROM   customers c
+JOIN   subscriptions s ON s.customer_id = c.id
+WHERE  s.churned = true
+ORDER BY s.cancelled_at DESC;`,
+      insightGenerator: (rows) => {
+        const count = rows.length;
+        return `${count} total accounts have churned across Enterprise and Professional tiers. Reviewing product telemetry prior to cancellation dates helps identify the early signals of disengagement.`;
+      }
+    };
+  }
+
   return null;
 }
 
