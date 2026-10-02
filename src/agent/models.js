@@ -16,15 +16,55 @@ export const PROVIDERS = {
 
 export const MODEL_REGISTRY = {
   [PROVIDERS.GEMINI]: {
-    'gemini-2.5-flash': {
-      id: 'gemini-2.5-flash',
-      label: 'Gemini 2.5 Flash',
+    'gemini-2.0-flash': {
+      id: 'gemini-2.0-flash',
+      label: 'Gemini 2.0 Flash',
       provider: PROVIDERS.GEMINI,
       isDefault: true,
       freeTier: true,
       toolCalling: true,
       apiStyle: 'gemini',
       description: 'Recommended · Google AI Studio Free Tier'
+    },
+    'gemini-1.5-flash': {
+      id: 'gemini-1.5-flash',
+      label: 'Gemini 1.5 Flash',
+      provider: PROVIDERS.GEMINI,
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Standard Free Tier · Fast & Multimodal'
+    },
+    'gemini-1.5-pro': {
+      id: 'gemini-1.5-pro',
+      label: 'Gemini 1.5 Pro',
+      provider: PROVIDERS.GEMINI,
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Complex Analytical Reasoning'
+    },
+    'gemini-2.0-flash-lite': {
+      id: 'gemini-2.0-flash-lite',
+      label: 'Gemini 2.0 Flash-Lite',
+      provider: PROVIDERS.GEMINI,
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Lightweight & Ultra-Fast'
+    },
+    'gemini-2.5-flash': {
+      id: 'gemini-2.5-flash',
+      label: 'Gemini 2.5 Flash',
+      provider: PROVIDERS.GEMINI,
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Preview (if available on your account)'
     },
     'gemini-2.5-flash-lite': {
       id: 'gemini-2.5-flash-lite',
@@ -34,7 +74,7 @@ export const MODEL_REGISTRY = {
       freeTier: true,
       toolCalling: true,
       apiStyle: 'gemini',
-      description: 'Lightweight · Google AI Studio Free Tier'
+      description: 'Lightweight Preview'
     }
   },
   [PROVIDERS.GROQ]: {
@@ -136,3 +176,19 @@ export function getModelsForProvider(provider) {
   const models = MODEL_REGISTRY[provider];
   return models ? Object.values(models) : [];
 }
+
+/**
+ * Registers or updates a model in the registry
+ * @param {string} provider
+ * @param {Object} modelConfig
+ */
+export function registerModel(provider, modelConfig) {
+  if (!MODEL_REGISTRY[provider]) {
+    MODEL_REGISTRY[provider] = {};
+  }
+  MODEL_REGISTRY[provider][modelConfig.id] = {
+    ...modelConfig,
+    provider
+  };
+}
+

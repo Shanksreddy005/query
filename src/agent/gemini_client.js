@@ -5,7 +5,7 @@
  * Keys are held strictly in runtime memory closure.
  */
 
-import { PROVIDERS, MODEL_REGISTRY, getDefaultModel } from './models.js';
+import { PROVIDERS, MODEL_REGISTRY, getDefaultModel, registerModel } from './models.js';
 import { GEMINI_TOOLS } from './tools.js';
 import { normalizeProviderError } from './error_normalizer.js';
 
@@ -42,8 +42,9 @@ export function clearApiKey() {
  * @param {string} modelId
  */
 export function setActiveModel(modelId) {
-  if (MODEL_REGISTRY[PROVIDERS.GEMINI]?.[modelId]) {
-    activeModel = modelId;
+  const cleanId = (modelId || '').replace(/^models\//, '');
+  if (MODEL_REGISTRY[PROVIDERS.GEMINI]?.[cleanId]) {
+    activeModel = cleanId;
   }
 }
 
@@ -56,9 +57,9 @@ export function getActiveModel() {
 }
 
 /**
- * Validates Gemini API key via model catalog lookup probe
+ * Validates Gemini API key via model catalog lookup probe and dynamically discovers available models
  * @param {string} testKey
- * @returns {Promise<{ valid: boolean, error?: string, normalizedError?: Object }>}
+ * @returns {Promise<{ valid: boolean, error?: string, normalizedError?: Object, discoveredModels?: Array<Object> }>}
  */
 export async function verifyApiKey(testKey) {
   const keyToTest = (testKey || memoryApiKey || '').trim();
@@ -75,7 +76,39 @@ export async function verifyApiKey(testKey) {
     });
 
     if (res.ok) {
-      return { valid: true };
+      const data = await res.json().catch(() => ({}));
+      const discovered = [];
+
+      if (Array.isArray(data.models)) {
+        data.models.forEach(m => {
+          const methods = m.supportedGenerationMethods || [];
+          if (methods.includes('generateContent')) {
+            const cleanId = m.name.replace(/^models\//, '');
+            const modelConfig = {
+              id: cleanId,
+              label: m.displayName || cleanId,
+              isDefault: cleanId === 'gemini-2.0-flash',
+              freeTier: true,
+              toolCalling: true,
+              apiStyle: 'gemini',
+              description: m.description ? m.description.slice(0, 60) + '...' : 'Available in Google AI Studio'
+            };
+            registerModel(PROVIDERS.GEMINI, modelConfig);
+            discovered.push(modelConfig);
+          }
+        });
+
+        // If the current activeModel is not supported by this key, pick the best working model
+        const activeSupported = discovered.some(m => m.id === activeModel);
+        if (!activeSupported && discovered.length > 0) {
+          const preferred = discovered.find(m => m.id === 'gemini-2.0-flash') ||
+                            discovered.find(m => m.id === 'gemini-1.5-flash') ||
+                            discovered[0];
+          activeModel = preferred.id;
+        }
+      }
+
+      return { valid: true, discoveredModels: discovered };
     }
 
     const errJson = await res.json().catch(() => ({}));
@@ -96,7 +129,7 @@ export async function verifyApiKey(testKey) {
 }
 
 /**
- * Calls Gemini generateContent API
+ * Calls Gemini generateContent API with automatic model fallback on 404 Not Found
  * @param {Object} params
  * @param {Array<Object>} params.contents - Formatted Gemini conversation history
  * @param {string} params.systemPrompt - System instruction text
@@ -114,30 +147,51 @@ export async function callGeminiContent({
     throw normalizeProviderError('gemini', 401, { error: { message: 'No Google Gemini API key configured.' } });
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(memoryApiKey)}`;
+  const cleanModel = (model || activeModel || 'gemini-2.0-flash').replace(/^models\//, '');
 
-  const payload = {
-    contents: contents,
-    tools: tools
-  };
-
-  if (systemPrompt) {
-    payload.systemInstruction = {
-      parts: [{ text: systemPrompt }]
+  const sendRequest = async (targetModel) => {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(targetModel)}:generateContent?key=${encodeURIComponent(memoryApiKey)}`;
+    const payload = {
+      contents: contents,
+      tools: tools
     };
-  }
 
-  let res;
-  try {
-    res = await fetch(url, {
+    if (systemPrompt) {
+      payload.systemInstruction = {
+        parts: [{ text: systemPrompt }]
+      };
+    }
+
+    return await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)
     });
+  };
+
+  let res;
+  try {
+    res = await sendRequest(cleanModel);
   } catch (netErr) {
     throw normalizeProviderError('gemini', null, null, netErr);
+  }
+
+  // Automatic model fallback if the requested model returns 404 (e.g. 2.5 preview not available on user's account)
+  if (res.status === 404) {
+    const fallbackList = ['gemini-2.0-flash', 'gemini-1.5-flash'].filter(m => m !== cleanModel);
+    for (const fbModel of fallbackList) {
+      try {
+        const retryRes = await sendRequest(fbModel);
+        if (retryRes.ok) {
+          activeModel = fbModel;
+          return await retryRes.json();
+        }
+      } catch (e) {
+        // Continue to error handling below
+      }
+    }
   }
 
   if (!res.ok) {
@@ -155,3 +209,4 @@ export async function callGeminiContent({
 
   return await res.json();
 }
+

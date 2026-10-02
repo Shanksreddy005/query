@@ -88,8 +88,7 @@ QueryMind is a 100% client-side, browser-native Natural Language to SQL analytic
 ### 2.4 Multi-Provider Agent Architecture (`src/agent/`)
 
 #### Central Model Registry (`models.js`)
-Centralized definition of supported models across all four providers:
-- **Google Gemini:** `gemini-2.5-flash` (Primary), `gemini-2.5-flash-lite` (Fast) — Free Tier supported.
+- **Google Gemini:** `gemini-2.0-flash` (Primary / Recommended), `gemini-1.5-flash`, `gemini-1.5-pro`, `gemini-2.0-flash-lite`, and preview models (`gemini-2.5-flash`, `gemini-2.5-flash-lite`) — Google AI Studio Free Tier supported with dynamic model discovery.
 - **Groq:** `llama-3.3-70b-versatile` (Primary), `llama-3.1-8b-instant` (Fast) — Free Developer Tier supported.
 - **Anthropic Claude:** `claude-sonnet-5-5` (Primary), `claude-haiku-4-5` (Fast) — BYOK.
 - **OpenAI:** `gpt-4o` (Primary), `gpt-4o-mini` (Fast) — BYOK.

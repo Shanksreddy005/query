@@ -77,8 +77,11 @@ Configurable directly from the **Key Settings** modal:
 
 | Provider | Model | Model ID | Tier / Availability | Recommended Use |
 |---|---|---|---|---|
-| **Google Gemini** | Gemini 2.5 Flash | `gemini-2.5-flash` | Free Tier (Google AI Studio) | Primary · Fast reasoning & generous free usage |
-| **Google Gemini** | Gemini 2.5 Flash Lite | `gemini-2.5-flash-lite` | Free Tier (Google AI Studio) | Fast · Ultra-lightweight & responsive |
+| **Google Gemini** | Gemini 2.0 Flash | `gemini-2.0-flash` | Free Tier (Google AI Studio) | Primary Recommended · High intelligence & fast reasoning |
+| **Google Gemini** | Gemini 1.5 Flash | `gemini-1.5-flash` | Free Tier (Google AI Studio) | Standard Free Tier · Universal availability & high capacity |
+| **Google Gemini** | Gemini 1.5 Pro | `gemini-1.5-pro` | Free Tier (Google AI Studio) | Deep analytical reasoning & complex queries |
+| **Google Gemini** | Gemini 2.0 Flash Lite | `gemini-2.0-flash-lite` | Free Tier (Google AI Studio) | Lightweight & ultra-fast throughput |
+| **Google Gemini** | Gemini 2.5 Flash | `gemini-2.5-flash` | Preview | Next-Gen Preview (if enabled on account) |
 | **Groq Cloud** | Llama 3.3 70B | `llama-3.3-70b-versatile` | Free Developer Tier | Primary · Fast open-weights analytical reasoning |
 | **Groq Cloud** | Llama 3.1 8B | `llama-3.1-8b-instant` | Free Developer Tier | Fast · Millisecond inference & quick exploration |
 | **Anthropic** | Claude Sonnet 5.5 | `claude-sonnet-5-5` | BYOK Paid | Flagship · Deep analytical synthesis & SQL reasoning |

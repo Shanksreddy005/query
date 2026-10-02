@@ -139,7 +139,7 @@ export class ApiKeyModal {
               <label class="form-label" for="fallbackProviderSelect" style="font-size: 11.5px;">Fallback Provider (Only used if key is configured)</label>
               <select id="fallbackProviderSelect" class="form-select">
                 <option value="groq">Groq (Llama 3.3 70B · Free Developer Tier)</option>
-                <option value="gemini">Google Gemini (Gemini 2.5 Flash · Free Tier)</option>
+                <option value="gemini">Google Gemini (Gemini 2.0 Flash · Free Tier)</option>
                 <option value="anthropic">Anthropic Claude</option>
                 <option value="openai">OpenAI</option>
               </select>
@@ -359,7 +359,16 @@ export class ApiKeyModal {
     if (check.valid) {
       providerManager.setApiKey(provider, key);
       providerManager.setActiveProvider(provider);
-      providerManager.setActiveModel(provider, modelSelect.value);
+
+      let finalModel = modelSelect.value;
+      if (check.discoveredModels && check.discoveredModels.length > 0) {
+        const isSupported = check.discoveredModels.some(m => m.id === finalModel);
+        if (!isSupported) {
+          finalModel = providerManager.getActiveModel(provider);
+        }
+      }
+      providerManager.setActiveModel(provider, finalModel);
+      this.refreshModelOptions();
       input.value = ''; // Immediately clear DOM input for security
       this.updateStatus();
       this.hide();
