@@ -1,10 +1,50 @@
 /**
  * BYOK Multi-Provider API Key Modal & Key Lifecycle Manager
- * Supports Anthropic Claude and OpenAI with zero persistence: credentials exist only in runtime memory.
+ * Supports Google Gemini (Free Tier), Groq (Free Developer Tier), Anthropic Claude, and OpenAI.
+ * Credentials exist only in runtime memory.
  */
 
 import { providerManager } from '../agent/provider_manager.js';
 import { PROVIDERS, getModelsForProvider } from '../agent/models.js';
+
+const PROVIDER_METADATA = {
+  [PROVIDERS.GEMINI]: {
+    name: 'Google Gemini',
+    badge: 'Free Tier',
+    badgeClass: 'free',
+    keyPlaceholder: 'AIzaSy...',
+    keyLabel: 'Google Gemini API Key',
+    helpUrl: 'https://aistudio.google.com/app/apikey',
+    helpText: 'Get a free API key in Google AI Studio ↗'
+  },
+  [PROVIDERS.GROQ]: {
+    name: 'Groq',
+    badge: 'Free Developer Tier',
+    badgeClass: 'free',
+    keyPlaceholder: 'gsk_...',
+    keyLabel: 'Groq API Key',
+    helpUrl: 'https://console.groq.com/keys',
+    helpText: 'Get a free developer key in Groq Console ↗'
+  },
+  [PROVIDERS.ANTHROPIC]: {
+    name: 'Anthropic Claude',
+    badge: 'BYOK',
+    badgeClass: 'byok',
+    keyPlaceholder: 'sk-ant-api03-...',
+    keyLabel: 'Anthropic Claude API Key',
+    helpUrl: 'https://console.anthropic.com/settings/keys',
+    helpText: 'Get an API key in Anthropic Console ↗'
+  },
+  [PROVIDERS.OPENAI]: {
+    name: 'OpenAI',
+    badge: 'BYOK',
+    badgeClass: 'byok',
+    keyPlaceholder: 'sk-...',
+    keyLabel: 'OpenAI API Key',
+    helpUrl: 'https://platform.openai.com/api-keys',
+    helpText: 'Get an API key in OpenAI Platform ↗'
+  }
+};
 
 export class ApiKeyModal {
   constructor({ onKeyConfigured = () => {}, onDemoMode = () => {} }) {
@@ -48,16 +88,20 @@ export class ApiKeyModal {
         <div class="modal-body">
           <div class="form-group">
             <label class="form-label">AI Provider</label>
-            <div class="provider-radio-group">
-              <label class="provider-radio-card active" id="radioCardAnthropic">
-                <input type="radio" name="providerSelect" value="${PROVIDERS.ANTHROPIC}" checked />
-                <span class="provider-radio-title">Anthropic Claude</span>
-              </label>
-              <label class="provider-radio-card" id="radioCardOpenAI">
-                <input type="radio" name="providerSelect" value="${PROVIDERS.OPENAI}" />
-                <span class="provider-radio-title">OpenAI</span>
-              </label>
+            <div class="provider-radio-grid">
+              ${Object.entries(PROVIDER_METADATA).map(([key, meta]) => `
+                <label class="provider-radio-card ${key === this.selectedProvider ? 'active' : ''}" id="card_${key}">
+                  <div class="provider-radio-top">
+                    <span class="provider-radio-title">
+                      <input type="radio" name="providerSelect" value="${key}" ${key === this.selectedProvider ? 'checked' : ''} />
+                      ${meta.name}
+                    </span>
+                    <span class="provider-tier-badge ${meta.badgeClass}">${meta.badge}</span>
+                  </div>
+                </label>
+              `).join('')}
             </div>
+            <div id="providerHelpLinkWrap" style="margin-top: 6px;"></div>
           </div>
 
           <div class="form-group">
@@ -68,13 +112,13 @@ export class ApiKeyModal {
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="apiKeyInput" id="apiKeyLabel">Anthropic Claude API Key</label>
+            <label class="form-label" for="apiKeyInput" id="apiKeyLabel">API Key</label>
             <div class="input-password-wrap">
               <input 
                 type="password" 
                 id="apiKeyInput" 
                 class="form-input mono" 
-                placeholder="sk-ant-api03-..." 
+                placeholder="sk-..." 
                 autocomplete="off" 
                 spellcheck="false" 
               />
@@ -85,13 +129,30 @@ export class ApiKeyModal {
             <div id="keyErrorMsg" class="form-error" style="display: none;"></div>
           </div>
 
-          <div class="privacy-callout">
+          <!-- User-Controlled Fallback Setting -->
+          <div class="fallback-box">
+            <label class="fallback-label">
+              <input type="checkbox" id="allowFallbackCheckbox" />
+              <span><strong>Allow provider fallback:</strong> Automatically retry with another provider on rate limits</span>
+            </label>
+            <div id="fallbackSelectContainer" style="display: none; margin-top: 10px;">
+              <label class="form-label" for="fallbackProviderSelect" style="font-size: 11.5px;">Fallback Provider (Only used if key is configured)</label>
+              <select id="fallbackProviderSelect" class="form-select">
+                <option value="groq">Groq (Llama 3.3 70B · Free Developer Tier)</option>
+                <option value="gemini">Google Gemini (Gemini 2.5 Flash · Free Tier)</option>
+                <option value="anthropic">Anthropic Claude</option>
+                <option value="openai">OpenAI</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="privacy-callout" style="margin-top: 14px;">
             <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#34c97b" stroke-width="1.8" style="flex-shrink: 0; margin-top: 2px;">
               <path d="M8 1v5M8 9v6M1 8h14"/>
               <circle cx="8" cy="8" r="7"/>
             </svg>
             <div>
-              <strong>BYOK Security Model:</strong> The API key is supplied by the user and retained only in JavaScript runtime memory. QueryMind does not persist, transmit, or proxy the key through its own infrastructure. Because the key is used directly by the browser, users should only enter keys they are comfortable using in a client-side application. Closing or refreshing this tab wipes all keys immediately.
+              <strong>Client-Side BYOK Security Model:</strong> Provider API keys are supplied by the user and held only in browser runtime memory. QueryMind does not persist or proxy keys through its own infrastructure. Because the key is used directly by the browser, users should only enter API keys they are comfortable using in a client-side application. Free-tier availability and limits are determined by each provider and may change. Closing or refreshing this tab wipes all keys immediately.
             </div>
           </div>
         </div>
@@ -116,34 +177,38 @@ export class ApiKeyModal {
     const verifyBtn = document.getElementById('btnVerifyKey');
     const demoBtn = document.getElementById('btnContinueDemo');
     const modelSelect = document.getElementById('modelSelect');
-    const radioAnthropic = document.querySelector('input[value="anthropic"]');
-    const radioOpenAI = document.querySelector('input[value="openai"]');
-    const cardAnthropic = document.getElementById('radioCardAnthropic');
-    const cardOpenAI = document.getElementById('radioCardOpenAI');
+    const fallbackCheckbox = document.getElementById('allowFallbackCheckbox');
+    const fallbackSelectContainer = document.getElementById('fallbackSelectContainer');
+    const fallbackProviderSelect = document.getElementById('fallbackProviderSelect');
 
-    // Populate initial model options
+    // Populate initial state
     this.refreshModelOptions();
+    this.updateInputLabels();
 
-    // Provider radio switch
-    const onProviderChange = (provider) => {
-      this.selectedProvider = provider;
-      if (provider === PROVIDERS.ANTHROPIC) {
-        cardAnthropic.classList.add('active');
-        cardOpenAI.classList.remove('active');
-        radioAnthropic.checked = true;
-      } else {
-        cardOpenAI.classList.add('active');
-        cardAnthropic.classList.remove('active');
-        radioOpenAI.checked = true;
-      }
+    // Provider card switching
+    const selectProvider = (prov) => {
+      this.selectedProvider = prov;
+      Object.keys(PROVIDER_METADATA).forEach(k => {
+        const card = document.getElementById(`card_${k}`);
+        const radio = card?.querySelector('input[type="radio"]');
+        if (k === prov) {
+          card?.classList.add('active');
+          if (radio) radio.checked = true;
+        } else {
+          card?.classList.remove('active');
+          if (radio) radio.checked = false;
+        }
+      });
       this.refreshModelOptions();
       this.updateInputLabels();
     };
 
-    radioAnthropic.addEventListener('change', () => onProviderChange(PROVIDERS.ANTHROPIC));
-    radioOpenAI.addEventListener('change', () => onProviderChange(PROVIDERS.OPENAI));
-    cardAnthropic.addEventListener('click', () => onProviderChange(PROVIDERS.ANTHROPIC));
-    cardOpenAI.addEventListener('click', () => onProviderChange(PROVIDERS.OPENAI));
+    Object.keys(PROVIDER_METADATA).forEach(k => {
+      const card = document.getElementById(`card_${k}`);
+      card?.addEventListener('click', (e) => {
+        selectProvider(k);
+      });
+    });
 
     toggleBtn.addEventListener('click', () => {
       input.type = input.type === 'password' ? 'text' : 'password';
@@ -152,6 +217,24 @@ export class ApiKeyModal {
 
     modelSelect.addEventListener('change', () => {
       providerManager.setActiveModel(this.selectedProvider, modelSelect.value);
+    });
+
+    // Fallback toggle event
+    fallbackCheckbox.addEventListener('change', () => {
+      fallbackSelectContainer.style.display = fallbackCheckbox.checked ? 'block' : 'none';
+      providerManager.setFallbackConfig({
+        enabled: fallbackCheckbox.checked,
+        fallbackProvider: fallbackProviderSelect.value
+      });
+    });
+
+    fallbackProviderSelect.addEventListener('change', () => {
+      if (fallbackCheckbox.checked) {
+        providerManager.setFallbackConfig({
+          enabled: true,
+          fallbackProvider: fallbackProviderSelect.value
+        });
+      }
     });
 
     verifyBtn.addEventListener('click', () => this.handleVerify());
@@ -184,21 +267,25 @@ export class ApiKeyModal {
     const label = document.getElementById('apiKeyLabel');
     const input = document.getElementById('apiKeyInput');
     const errorEl = document.getElementById('keyErrorMsg');
+    const helpWrap = document.getElementById('providerHelpLinkWrap');
     if (!label || !input) return;
 
     if (errorEl) errorEl.style.display = 'none';
 
-    if (this.selectedProvider === PROVIDERS.OPENAI) {
-      label.textContent = 'OpenAI API Key';
-      input.placeholder = 'sk-...';
-    } else {
-      label.textContent = 'Anthropic Claude API Key';
-      input.placeholder = 'sk-ant-api03-...';
-    }
+    const meta = PROVIDER_METADATA[this.selectedProvider] || {};
+    label.textContent = meta.keyLabel || 'API Key';
+    input.placeholder = meta.keyPlaceholder || 'Enter API Key...';
 
-    // Indicate if memory already has a key for this provider
     if (providerManager.hasApiKey(this.selectedProvider)) {
       label.textContent += ' (Key already configured in memory)';
+    }
+
+    if (helpWrap && meta.helpUrl) {
+      helpWrap.innerHTML = `
+        <a href="${meta.helpUrl}" target="_blank" rel="noopener noreferrer" class="provider-help-link">
+          ${meta.helpText}
+        </a>
+      `;
     }
   }
 
@@ -213,7 +300,7 @@ export class ApiKeyModal {
         <span class="status-dot"></span>
         <span class="status-text">○ No API Key (Demo Mode)</span>
       </div>
-      <button id="btnClearKeyBtn" class="btn-sm btn-ghost" style="display: none;" title="Wipe API keys from memory">
+      <button id="btnClearKeyBtn" class="btn-sm btn-ghost" style="display: none;" title="Wipe active API key from memory">
         Clear Key
       </button>
       <button id="btnOpenKeyModal" class="btn-sm btn-secondary" title="Configure AI Provider & Key">
@@ -243,9 +330,8 @@ export class ApiKeyModal {
 
     const key = input.value.trim();
     const provider = this.selectedProvider;
-    const providerName = provider === PROVIDERS.OPENAI ? 'OpenAI' : 'Anthropic Claude';
+    const meta = PROVIDER_METADATA[provider] || {};
 
-    // If key input is empty but memory already has key, proceed
     if (!key && providerManager.hasApiKey(provider)) {
       providerManager.setActiveProvider(provider);
       providerManager.setActiveModel(provider, modelSelect.value);
@@ -256,14 +342,14 @@ export class ApiKeyModal {
     }
 
     if (!key) {
-      errorEl.textContent = `Please enter your ${providerName} API key.`;
+      errorEl.textContent = `Please enter your ${meta.name} API key.`;
       errorEl.style.display = 'block';
       return;
     }
 
     errorEl.style.display = 'none';
     verifyBtn.disabled = true;
-    btnText.textContent = `Verifying with ${providerName}...`;
+    btnText.textContent = `Verifying with ${meta.name}...`;
 
     const check = await providerManager.verifyApiKey(provider, key, modelSelect.value);
 
@@ -293,10 +379,14 @@ export class ApiKeyModal {
 
     if (config.hasKey) {
       badge.className = 'badge badge-green';
-      const label = config.provider === PROVIDERS.OPENAI
-        ? `● OpenAI · ${config.modelLabel}`
-        : `● Claude · ${config.modelLabel.replace('Claude ', '')}`;
-      badge.innerHTML = `<span class="status-dot green"></span>${label}`;
+      let cleanLabel = config.modelLabel;
+      if (config.provider === PROVIDERS.GEMINI) {
+        cleanLabel = cleanLabel.replace('Gemini ', '');
+      } else if (config.provider === PROVIDERS.ANTHROPIC) {
+        cleanLabel = cleanLabel.replace('Claude ', '');
+      }
+      const provName = PROVIDER_METADATA[config.provider]?.name || config.provider;
+      badge.innerHTML = `<span class="status-dot green"></span>● ${provName} · ${cleanLabel}`;
       if (clearBtn) clearBtn.style.display = 'inline-flex';
     } else {
       badge.className = 'badge badge-blue';
@@ -308,17 +398,17 @@ export class ApiKeyModal {
   show() {
     if (this.modalEl) {
       this.selectedProvider = providerManager.getActiveProvider();
-      const radio = document.querySelector(`input[value="${this.selectedProvider}"]`);
-      if (radio) radio.checked = true;
-      const cardAnthropic = document.getElementById('radioCardAnthropic');
-      const cardOpenAI = document.getElementById('radioCardOpenAI');
-      if (this.selectedProvider === PROVIDERS.OPENAI) {
-        cardOpenAI?.classList.add('active');
-        cardAnthropic?.classList.remove('active');
-      } else {
-        cardAnthropic?.classList.add('active');
-        cardOpenAI?.classList.remove('active');
-      }
+      Object.keys(PROVIDER_METADATA).forEach(k => {
+        const card = document.getElementById(`card_${k}`);
+        const radio = card?.querySelector('input[type="radio"]');
+        if (k === this.selectedProvider) {
+          card?.classList.add('active');
+          if (radio) radio.checked = true;
+        } else {
+          card?.classList.remove('active');
+          if (radio) radio.checked = false;
+        }
+      });
       this.refreshModelOptions();
       this.updateInputLabels();
 

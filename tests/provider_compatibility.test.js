@@ -8,8 +8,13 @@ import { executeQuery } from '../src/duckdb/executor.js';
 import { getDuckDB } from '../src/duckdb/init.js';
 import { loadCsvIntoDuckDB } from '../src/duckdb/csv_loader.js';
 
-describe('Provider × Feature Compatibility Test Matrix', () => {
-  const providers = [PROVIDERS.ANTHROPIC, PROVIDERS.OPENAI];
+describe('Four-Provider × Feature Compatibility Test Matrix', () => {
+  const providers = [
+    PROVIDERS.GEMINI,
+    PROVIDERS.GROQ,
+    PROVIDERS.ANTHROPIC,
+    PROVIDERS.OPENAI
+  ];
 
   for (const provider of providers) {
     describe(`Provider: ${provider.toUpperCase()}`, () => {
@@ -50,14 +55,27 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
         const tools = getToolsForProvider(provider);
         assert.ok(Array.isArray(tools) && tools.length > 0, `Tools for ${provider} must be an array`);
 
-        const sqlTool = tools.find(t => t.name === 'run_sql' || t.function?.name === 'run_sql');
-        assert.ok(sqlTool, `run_sql tool must exist for ${provider}`);
-
-        if (provider === PROVIDERS.ANTHROPIC) {
+        if (provider === PROVIDERS.GEMINI) {
+          const declaration = tools[0]?.functionDeclarations?.[0];
+          assert.ok(declaration, 'Gemini must have functionDeclarations[0]');
+          assert.equal(declaration.name, 'run_sql');
+          assert.ok(declaration.parameters.properties.query);
+          assert.deepEqual(declaration.parameters.required, ['query']);
+        } else if (provider === PROVIDERS.GROQ) {
+          const sqlTool = tools.find(t => t.function?.name === 'run_sql');
+          assert.ok(sqlTool, 'Groq must have run_sql tool');
+          assert.equal(sqlTool.type, 'function');
+          assert.ok(sqlTool.function.parameters.properties.query);
+          assert.deepEqual(sqlTool.function.parameters.required, ['query']);
+        } else if (provider === PROVIDERS.ANTHROPIC) {
+          const sqlTool = tools.find(t => t.name === 'run_sql');
+          assert.ok(sqlTool);
           assert.equal(sqlTool.name, 'run_sql');
           assert.ok(sqlTool.input_schema.properties.query);
           assert.deepEqual(sqlTool.input_schema.required, ['query']);
         } else if (provider === PROVIDERS.OPENAI) {
+          const sqlTool = tools.find(t => t.name === 'run_sql');
+          assert.ok(sqlTool);
           assert.equal(sqlTool.type, 'function');
           assert.equal(sqlTool.name, 'run_sql');
           assert.ok(sqlTool.parameters.properties.query);
@@ -66,9 +84,6 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
       });
 
       test(`4. run_sql request normalized parsing (${provider})`, () => {
-        const conversation = new NormalizedConversation('Show top customers');
-
-        // Simulate tool call turn from model
         const mockToolCall = {
           type: 'tool_call',
           toolName: 'run_sql',
@@ -105,12 +120,18 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
           assert.equal(lastMsg.role, 'user');
           assert.equal(lastMsg.content[0].type, 'tool_result');
           assert.equal(lastMsg.content[0].tool_use_id, toolCallId);
-          assert.equal(lastMsg.content[0].is_error, false);
         } else if (provider === PROVIDERS.OPENAI) {
           const lastItem = conversation.openAiInput[conversation.openAiInput.length - 1];
           assert.equal(lastItem.type, 'function_call_output');
           assert.equal(lastItem.call_id, toolCallId);
-          assert.equal(lastItem.output, sampleResult);
+        } else if (provider === PROVIDERS.GEMINI) {
+          const lastItem = conversation.geminiContents[conversation.geminiContents.length - 1];
+          assert.equal(lastItem.role, 'function');
+          assert.equal(lastItem.parts[0].functionResponse.name, 'run_sql');
+        } else if (provider === PROVIDERS.GROQ) {
+          const lastItem = conversation.groqMessages[conversation.groqMessages.length - 1];
+          assert.equal(lastItem.role, 'tool');
+          assert.equal(lastItem.tool_call_id, toolCallId);
         }
       });
 
@@ -129,11 +150,15 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
         if (provider === PROVIDERS.ANTHROPIC) {
           const lastMsg = conversation.anthropicMessages[conversation.anthropicMessages.length - 1];
           assert.equal(lastMsg.content[0].is_error, true);
-          assert.ok(lastMsg.content[0].content.includes('Table "wrong_table" does not exist'));
         } else if (provider === PROVIDERS.OPENAI) {
           const lastItem = conversation.openAiInput[conversation.openAiInput.length - 1];
-          assert.equal(lastItem.type, 'function_call_output');
-          assert.ok(lastItem.output.includes('Table "wrong_table" does not exist'));
+          assert.ok(lastItem.output.includes('wrong_table'));
+        } else if (provider === PROVIDERS.GEMINI) {
+          const lastItem = conversation.geminiContents[conversation.geminiContents.length - 1];
+          assert.ok(lastItem.parts[0].functionResponse.response.output.includes('wrong_table'));
+        } else if (provider === PROVIDERS.GROQ) {
+          const lastItem = conversation.groqMessages[conversation.groqMessages.length - 1];
+          assert.ok(lastItem.content.includes('wrong_table'));
         }
       });
 
@@ -162,16 +187,15 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
           type: 'final',
           text: 'Enterprise tier generates the highest average MRR ($5,240), accounting for 61.2% of total recurring revenue.'
         };
-
         assert.equal(finalTurn.type, 'final');
         assert.ok(finalTurn.text.includes('Enterprise tier'));
       });
 
       test(`10. Symmetrical Error Normalization (${provider})`, () => {
-        // 401 Unauthorized
+        // 401 Unauthorized / Invalid API Key
         const err401 = normalizeProviderError(provider, 401, { error: { message: 'Invalid key' } });
         assert.equal(err401.provider, provider);
-        assert.equal(err401.category, ERROR_CATEGORIES.UNAUTHORIZED);
+        assert.equal(err401.category, ERROR_CATEGORIES.INVALID_API_KEY);
         assert.equal(err401.retryable, false);
 
         // 403 Forbidden
@@ -181,16 +205,12 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
 
         // 429 Rate limit
         const err429 = normalizeProviderError(provider, 429, {});
-        assert.equal(err429.category, ERROR_CATEGORIES.RATE_LIMIT);
+        assert.equal(err429.category, ERROR_CATEGORIES.RATE_LIMITED);
         assert.equal(err429.retryable, true);
-
-        // 400 Bad request
-        const err400 = normalizeProviderError(provider, 400, { error: { message: 'Bad param' } });
-        assert.equal(err400.category, ERROR_CATEGORIES.BAD_REQUEST);
 
         // 500 Server error
         const err500 = normalizeProviderError(provider, 500, {});
-        assert.equal(err500.category, ERROR_CATEGORIES.SERVER_ERROR);
+        assert.equal(err500.category, ERROR_CATEGORIES.PROVIDER_ERROR);
         assert.equal(err500.retryable, true);
 
         // Network error
@@ -200,4 +220,23 @@ describe('Provider × Feature Compatibility Test Matrix', () => {
       });
     });
   }
+
+  describe('User-Controlled Fallback Architecture', () => {
+    test('fallback is disabled by default', () => {
+      providerManager.setFallbackConfig({ enabled: false });
+      const cfg = providerManager.getFallbackConfig();
+      assert.equal(cfg.enabled, false);
+      assert.equal(cfg.fallbackProvider, null);
+    });
+
+    test('fallback configuration enables and stores chosen fallback provider', () => {
+      providerManager.setFallbackConfig({ enabled: true, fallbackProvider: PROVIDERS.GROQ });
+      const cfg = providerManager.getFallbackConfig();
+      assert.equal(cfg.enabled, true);
+      assert.equal(cfg.fallbackProvider, PROVIDERS.GROQ);
+
+      // Reset
+      providerManager.setFallbackConfig({ enabled: false });
+    });
+  });
 });

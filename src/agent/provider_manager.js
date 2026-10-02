@@ -1,15 +1,20 @@
 /**
  * Unified Provider Manager & Abstraction Boundary
- * Coordinates Claude and OpenAI adapters, normalizing API interactions into standard internal events.
- * The Agent Loop communicates strictly through this boundary and never performs provider-specific branching.
+ * Coordinates Claude, OpenAI, Google Gemini, and Groq adapters.
+ * Normalizes all API interactions into standard internal events for the Agent Controller.
+ * Supports optional, strictly user-controlled fallback (default: OFF).
  */
 
 import { PROVIDERS, MODEL_REGISTRY, getDefaultModel, getModelConfig } from './models.js';
 import * as claudeClient from './claude_client.js';
 import * as openAiClient from './openai_client.js';
-import { ANTHROPIC_TOOLS, OPENAI_RESPONSES_TOOLS } from './tools.js';
+import * as geminiClient from './gemini_client.js';
+import * as groqClient from './groq_client.js';
+import { ANTHROPIC_TOOLS, OPENAI_RESPONSES_TOOLS, GEMINI_TOOLS, GROQ_TOOLS } from './tools.js';
 
-let activeProvider = PROVIDERS.ANTHROPIC;
+let activeProvider = PROVIDERS.GEMINI; // Default to Gemini Free Tier
+let userAllowFallback = false;
+let userFallbackProvider = null;
 
 /**
  * Normalized Conversation State Manager
@@ -18,10 +23,24 @@ let activeProvider = PROVIDERS.ANTHROPIC;
 export class NormalizedConversation {
   constructor(initialQuestion) {
     this.question = (initialQuestion || '').trim();
+
+    // Anthropic Messages API format
     this.anthropicMessages = [
       { role: 'user', content: this.question }
     ];
+
+    // OpenAI Responses API format
     this.openAiInput = [
+      { role: 'user', content: this.question }
+    ];
+
+    // Google Gemini GenerativeLanguage format
+    this.geminiContents = [
+      { role: 'user', parts: [{ text: this.question }] }
+    ];
+
+    // Groq OpenAI-compatible Chat Completions format
+    this.groqMessages = [
       { role: 'user', content: this.question }
     ];
   }
@@ -38,12 +57,18 @@ export class NormalizedConversation {
         content: rawOutput
       });
     } else if (provider === PROVIDERS.OPENAI) {
-      // In OpenAI Responses API, append assistant output items
       if (Array.isArray(rawOutput)) {
         this.openAiInput.push(...rawOutput);
       } else if (rawOutput) {
         this.openAiInput.push(rawOutput);
       }
+    } else if (provider === PROVIDERS.GEMINI) {
+      this.geminiContents.push({
+        role: 'model',
+        parts: Array.isArray(rawOutput) ? rawOutput : [rawOutput]
+      });
+    } else if (provider === PROVIDERS.GROQ) {
+      this.groqMessages.push(rawOutput);
     }
   }
 
@@ -56,7 +81,7 @@ export class NormalizedConversation {
    * @param {string} params.content - Serialized JSON or error string
    */
   addToolResult({ toolCallId, toolName = 'run_sql', isError, content }) {
-    // Anthropic tool_result schema
+    // 1. Anthropic tool_result block
     this.anthropicMessages.push({
       role: 'user',
       content: [
@@ -69,17 +94,37 @@ export class NormalizedConversation {
       ]
     });
 
-    // OpenAI Responses API function_call_output item
+    // 2. OpenAI Responses API function_call_output item
     this.openAiInput.push({
       type: 'function_call_output',
       call_id: toolCallId,
       output: content
     });
+
+    // 3. Google Gemini functionResponse part
+    this.geminiContents.push({
+      role: 'function',
+      parts: [
+        {
+          functionResponse: {
+            name: toolName,
+            response: { output: content }
+          }
+        }
+      ]
+    });
+
+    // 4. Groq OpenAI-compatible tool message
+    this.groqMessages.push({
+      role: 'tool',
+      tool_call_id: toolCallId,
+      content: content
+    });
   }
 }
 
 /**
- * Adapter for Anthropic Messages API
+ * Anthropic Claude Adapter
  */
 const claudeAdapter = {
   async sendTurn(conversation, systemPrompt, maxTokens = 1024) {
@@ -93,7 +138,6 @@ const claudeAdapter = {
     const contentBlocks = rawRes.content || [];
     conversation.recordAssistantTurn(PROVIDERS.ANTHROPIC, contentBlocks);
 
-    // Check for tool call
     const toolUse = contentBlocks.find(b => b.type === 'tool_use' && b.name === 'run_sql');
     if (toolUse) {
       return {
@@ -104,19 +148,16 @@ const claudeAdapter = {
       };
     }
 
-    // Extract text blocks
     const textBlocks = contentBlocks.filter(b => b.type === 'text');
-    const fullText = textBlocks.map(b => b.text).join('\n\n').trim();
-
     return {
       type: 'final',
-      text: fullText
+      text: textBlocks.map(b => b.text).join('\n\n').trim()
     };
   }
 };
 
 /**
- * Adapter for OpenAI Responses API
+ * OpenAI Responses API Adapter
  */
 const openAiAdapter = {
   async sendTurn(conversation, systemPrompt) {
@@ -126,23 +167,18 @@ const openAiAdapter = {
       tools: OPENAI_RESPONSES_TOOLS
     });
 
-    // Responses API returns items in `output` or top-level output items
     const outputItems = rawRes.output || (rawRes.choices ? [rawRes.choices[0]?.message] : []);
     conversation.recordAssistantTurn(PROVIDERS.OPENAI, outputItems);
 
-    // Look for function_call in output items
     let functionCallItem = null;
     let textParts = [];
 
     for (const item of outputItems) {
       if (!item) continue;
-
       if (item.type === 'function_call' || item.type === 'tool_call' || (item.name === 'run_sql' && item.arguments)) {
         functionCallItem = item;
         break;
       }
-
-      // Legacy fallback if wrapped in tool_calls array
       if (item.tool_calls && Array.isArray(item.tool_calls) && item.tool_calls.length > 0) {
         const tc = item.tool_calls[0];
         functionCallItem = {
@@ -152,8 +188,6 @@ const openAiAdapter = {
         };
         break;
       }
-
-      // Extract text content
       if (item.type === 'message' && item.content) {
         if (typeof item.content === 'string') {
           textParts.push(item.content);
@@ -197,142 +231,202 @@ const openAiAdapter = {
 };
 
 /**
- * Provider Manager API
+ * Google Gemini Adapter
+ */
+const geminiAdapter = {
+  async sendTurn(conversation, systemPrompt) {
+    const rawRes = await geminiClient.callGeminiContent({
+      contents: conversation.geminiContents,
+      systemPrompt: systemPrompt,
+      tools: GEMINI_TOOLS
+    });
+
+    const candidate = rawRes.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+    conversation.recordAssistantTurn(PROVIDERS.GEMINI, parts);
+
+    // Look for functionCall part
+    const fnCallPart = parts.find(p => p.functionCall && p.functionCall.name === 'run_sql');
+    if (fnCallPart) {
+      return {
+        type: 'tool_call',
+        toolName: fnCallPart.functionCall.name,
+        toolCallId: `call_gemini_${Date.now()}`,
+        arguments: fnCallPart.functionCall.args || {}
+      };
+    }
+
+    // Extract text parts
+    const textParts = parts.filter(p => p.text).map(p => p.text);
+    return {
+      type: 'final',
+      text: textParts.join('\n\n').trim()
+    };
+  }
+};
+
+/**
+ * Groq Cloud Adapter
+ */
+const groqAdapter = {
+  async sendTurn(conversation, systemPrompt) {
+    const rawRes = await groqClient.callGroqChat({
+      messages: conversation.groqMessages,
+      systemPrompt: systemPrompt,
+      tools: GROQ_TOOLS
+    });
+
+    const message = rawRes.choices?.[0]?.message || {};
+    conversation.recordAssistantTurn(PROVIDERS.GROQ, message);
+
+    if (message.tool_calls && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+      const tc = message.tool_calls[0];
+      let parsedArgs = {};
+      if (typeof tc.function?.arguments === 'string') {
+        try {
+          parsedArgs = JSON.parse(tc.function.arguments);
+        } catch (e) {
+          parsedArgs = { query: tc.function.arguments };
+        }
+      } else if (typeof tc.function?.arguments === 'object') {
+        parsedArgs = tc.function.arguments;
+      }
+
+      return {
+        type: 'tool_call',
+        toolName: tc.function?.name || 'run_sql',
+        toolCallId: tc.id || `call_groq_${Date.now()}`,
+        arguments: parsedArgs
+      };
+    }
+
+    return {
+      type: 'final',
+      text: (message.content || '').trim()
+    };
+  }
+};
+
+/**
+ * Maps providers to their respective adapter implementations
+ */
+const ADAPTER_MAP = {
+  [PROVIDERS.ANTHROPIC]: claudeAdapter,
+  [PROVIDERS.OPENAI]: openAiAdapter,
+  [PROVIDERS.GEMINI]: geminiAdapter,
+  [PROVIDERS.GROQ]: groqAdapter
+};
+
+const CLIENT_MAP = {
+  [PROVIDERS.ANTHROPIC]: claudeClient,
+  [PROVIDERS.OPENAI]: openAiClient,
+  [PROVIDERS.GEMINI]: geminiClient,
+  [PROVIDERS.GROQ]: groqClient
+};
+
+/**
+ * Unified Provider Manager
  */
 export const providerManager = {
   PROVIDERS,
 
-  /**
-   * Sets the active provider ('anthropic' | 'openai')
-   * @param {string} provider
-   */
   setActiveProvider(provider) {
     if (Object.values(PROVIDERS).includes(provider)) {
       activeProvider = provider;
     }
   },
 
-  /**
-   * Returns the currently active provider
-   * @returns {string}
-   */
   getActiveProvider() {
     return activeProvider;
   },
 
-  /**
-   * Sets the active model for a provider
-   * @param {string} provider
-   * @param {string} modelId
-   */
   setActiveModel(provider, modelId) {
-    if (provider === PROVIDERS.OPENAI) {
-      openAiClient.setActiveModel(modelId);
-    } else {
-      claudeClient.setActiveModel(modelId);
-    }
+    CLIENT_MAP[provider]?.setActiveModel(modelId);
   },
 
-  /**
-   * Returns the active model ID for a provider
-   * @param {string} [provider]
-   * @returns {string}
-   */
   getActiveModel(provider = activeProvider) {
-    if (provider === PROVIDERS.OPENAI) {
-      return openAiClient.getActiveModel();
-    }
-    return claudeClient.getActiveModel();
+    return CLIENT_MAP[provider]?.getActiveModel() || getDefaultModel(provider);
   },
 
-  /**
-   * Stores the API key in runtime memory for the specified provider
-   * @param {string} provider
-   * @param {string} key
-   */
   setApiKey(provider, key) {
-    if (provider === PROVIDERS.OPENAI) {
-      openAiClient.setApiKey(key);
-    } else {
-      claudeClient.setApiKey(key);
-    }
+    CLIENT_MAP[provider]?.setApiKey(key);
   },
 
-  /**
-   * Returns whether a key is configured in memory for the specified provider
-   * @param {string} [provider]
-   * @returns {boolean}
-   */
   hasApiKey(provider = activeProvider) {
-    if (provider === PROVIDERS.OPENAI) {
-      return openAiClient.hasApiKey();
-    }
-    return claudeClient.hasApiKey();
+    return Boolean(CLIENT_MAP[provider]?.hasApiKey());
   },
 
-  /**
-   * Returns whether ANY provider has an active key
-   * @returns {boolean}
-   */
   hasAnyKey() {
-    return claudeClient.hasApiKey() || openAiClient.hasApiKey();
+    return Object.values(CLIENT_MAP).some(c => c.hasApiKey());
   },
 
-  /**
-   * Clears the API key for a specified provider
-   * @param {string} provider
-   */
   clearApiKey(provider) {
-    if (provider === PROVIDERS.OPENAI) {
-      openAiClient.clearApiKey();
-    } else if (provider === PROVIDERS.ANTHROPIC) {
-      claudeClient.clearApiKey();
-    }
+    CLIENT_MAP[provider]?.clearApiKey();
   },
 
-  /**
-   * Clears all API keys from memory
-   */
   clearAllKeys() {
-    claudeClient.clearApiKey();
-    openAiClient.clearApiKey();
+    Object.values(CLIENT_MAP).forEach(c => c.clearApiKey());
   },
 
-  /**
-   * Verifies an API key with the provider's validation probe
-   * @param {string} provider
-   * @param {string} testKey
-   * @param {string} [modelId]
-   * @returns {Promise<{ valid: boolean, error?: string }>}
-   */
   async verifyApiKey(provider, testKey, modelId) {
-    if (provider === PROVIDERS.OPENAI) {
-      return await openAiClient.verifyApiKey(testKey);
+    const client = CLIENT_MAP[provider];
+    if (!client) {
+      return { valid: false, error: `Unsupported provider: ${provider}` };
     }
-    return await claudeClient.verifyApiKey(testKey, modelId);
+    return await client.verifyApiKey(testKey, modelId);
   },
 
   /**
-   * Dispatches a single conversation turn through the active provider adapter.
-   * Returns a normalized event:
-   *   { type: 'tool_call', toolName: 'run_sql', toolCallId: '...', arguments: { query: '...' } }
-   *   or
-   *   { type: 'final', text: '...' }
-   * @param {NormalizedConversation} conversation
-   * @param {string} systemPrompt
-   * @returns {Promise<{ type: string, toolName?: string, toolCallId?: string, arguments?: Object, text?: string }>}
+   * User-Controlled Fallback Configuration
+   */
+  setFallbackConfig({ enabled = false, fallbackProvider = null } = {}) {
+    userAllowFallback = Boolean(enabled);
+    if (fallbackProvider && Object.values(PROVIDERS).includes(fallbackProvider)) {
+      userFallbackProvider = fallbackProvider;
+    } else {
+      userFallbackProvider = null;
+    }
+  },
+
+  getFallbackConfig() {
+    return {
+      enabled: userAllowFallback,
+      fallbackProvider: userFallbackProvider
+    };
+  },
+
+  /**
+   * Dispatches a turn through the active provider adapter.
+   * If user-controlled fallback is explicitly enabled and configured, retries on retryable errors.
    */
   async sendTurn(conversation, systemPrompt) {
-    if (activeProvider === PROVIDERS.OPENAI) {
-      return await openAiAdapter.sendTurn(conversation, systemPrompt);
+    const currentProvider = activeProvider;
+    const adapter = ADAPTER_MAP[currentProvider];
+
+    if (!adapter) {
+      throw new Error(`Unsupported AI provider: ${currentProvider}`);
     }
-    return await claudeAdapter.sendTurn(conversation, systemPrompt);
+
+    try {
+      return await adapter.sendTurn(conversation, systemPrompt);
+    } catch (primaryErr) {
+      // Check if user explicitly enabled fallback to a provider that HAS a key
+      if (
+        userAllowFallback &&
+        userFallbackProvider &&
+        userFallbackProvider !== currentProvider &&
+        this.hasApiKey(userFallbackProvider) &&
+        primaryErr.normalized?.retryable
+      ) {
+        const fallbackAdapter = ADAPTER_MAP[userFallbackProvider];
+        if (fallbackAdapter) {
+          return await fallbackAdapter.sendTurn(conversation, systemPrompt);
+        }
+      }
+      throw primaryErr;
+    }
   },
 
-  /**
-   * Returns display metadata for active provider configuration
-   * @returns {{ provider: string, modelId: string, modelLabel: string, hasKey: boolean }}
-   */
   getActiveConfig() {
     const prov = activeProvider;
     const modelId = this.getActiveModel(prov);
@@ -341,7 +435,8 @@ export const providerManager = {
       provider: prov,
       modelId: modelId,
       modelLabel: cfg?.label || modelId,
-      hasKey: this.hasApiKey(prov)
+      hasKey: this.hasApiKey(prov),
+      freeTier: Boolean(cfg?.freeTier)
     };
   }
 };

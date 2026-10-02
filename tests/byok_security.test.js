@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { providerManager } from '../src/agent/provider_manager.js';
 import * as claudeClient from '../src/agent/claude_client.js';
 import * as openAiClient from '../src/agent/openai_client.js';
+import * as geminiClient from '../src/agent/gemini_client.js';
+import * as groqClient from '../src/agent/groq_client.js';
 import { normalizeProviderError, ERROR_CATEGORIES } from '../src/agent/error_normalizer.js';
 import { HistoryView } from '../src/ui/history_view.js';
 import { MAX_AI_ROWS, MAX_DISPLAY_ROWS, MAX_AGENT_ROUNDS } from '../src/agent/models.js';
@@ -10,51 +12,54 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 describe('BYOK Security & Privacy Audit', () => {
-  test('API key lifecycle exists strictly in runtime memory for both Anthropic and OpenAI', () => {
+  test('API key lifecycle exists strictly in runtime memory across all 4 providers', () => {
     providerManager.clearAllKeys();
-    assert.equal(providerManager.hasApiKey('anthropic'), false);
-    assert.equal(providerManager.hasApiKey('openai'), false);
+    const providers = ['gemini', 'groq', 'anthropic', 'openai'];
+
+    for (const p of providers) {
+      assert.equal(providerManager.hasApiKey(p), false);
+    }
     assert.equal(providerManager.hasAnyKey(), false);
 
-    const antKey = 'sk-ant-test-secret-12345';
-    const oaiKey = 'sk-proj-test-openai-67890';
+    // Set keys
+    providerManager.setApiKey('gemini', 'AIzaSy-test-gemini-key');
+    providerManager.setApiKey('groq', 'gsk-test-groq-key');
+    providerManager.setApiKey('anthropic', 'sk-ant-test-anthropic-key');
+    providerManager.setApiKey('openai', 'sk-proj-test-openai-key');
 
-    providerManager.setApiKey('anthropic', antKey);
-    assert.equal(providerManager.hasApiKey('anthropic'), true);
-    assert.equal(providerManager.hasApiKey('openai'), false);
-
-    providerManager.setApiKey('openai', oaiKey);
-    assert.equal(providerManager.hasApiKey('openai'), true);
+    for (const p of providers) {
+      assert.equal(providerManager.hasApiKey(p), true, `Provider ${p} must have its key`);
+    }
     assert.equal(providerManager.hasAnyKey(), true);
 
-    providerManager.clearApiKey('anthropic');
-    assert.equal(providerManager.hasApiKey('anthropic'), false);
-    assert.equal(providerManager.hasApiKey('openai'), true, 'Clearing Anthropic key must leave OpenAI key intact');
-
-    providerManager.clearAllKeys();
-    assert.equal(providerManager.hasApiKey('anthropic'), false);
-    assert.equal(providerManager.hasApiKey('openai'), false);
-  });
-
-  test('switching providers does not overwrite or corrupt the other provider key', () => {
-    providerManager.clearAllKeys();
-
-    providerManager.setApiKey('anthropic', 'sk-ant-independent-key');
-    providerManager.setApiKey('openai', 'sk-openai-independent-key');
-
-    providerManager.setActiveProvider('anthropic');
-    assert.equal(providerManager.getActiveProvider(), 'anthropic');
+    // Clear one key: others must remain intact
+    providerManager.clearApiKey('gemini');
+    assert.equal(providerManager.hasApiKey('gemini'), false);
+    assert.equal(providerManager.hasApiKey('groq'), true);
     assert.equal(providerManager.hasApiKey('anthropic'), true);
-
-    // Switch to OpenAI
-    providerManager.setActiveProvider('openai');
-    assert.equal(providerManager.getActiveProvider(), 'openai');
     assert.equal(providerManager.hasApiKey('openai'), true);
 
-    // Switch back to Anthropic
-    providerManager.setActiveProvider('anthropic');
-    assert.equal(providerManager.getActiveProvider(), 'anthropic');
-    assert.equal(providerManager.hasApiKey('anthropic'), true);
+    // Clear all
+    providerManager.clearAllKeys();
+    for (const p of providers) {
+      assert.equal(providerManager.hasApiKey(p), false);
+    }
+  });
+
+  test('cross-provider key isolation: switching providers does not overwrite other keys', () => {
+    providerManager.clearAllKeys();
+
+    providerManager.setApiKey('gemini', 'gemini-secret-111');
+    providerManager.setApiKey('groq', 'groq-secret-222');
+    providerManager.setApiKey('anthropic', 'anthropic-secret-333');
+    providerManager.setApiKey('openai', 'openai-secret-444');
+
+    const sequence = ['gemini', 'groq', 'anthropic', 'openai', 'gemini'];
+    for (const p of sequence) {
+      providerManager.setActiveProvider(p);
+      assert.equal(providerManager.getActiveProvider(), p);
+      assert.equal(providerManager.hasApiKey(p), true);
+    }
 
     providerManager.clearAllKeys();
   });
@@ -95,56 +100,50 @@ describe('BYOK Security & Privacy Audit', () => {
     history.add(safeQuery);
     assert.equal(history.history[0], safeQuery);
 
-    // Even if user accidentally typed a query containing a secret pattern:
     assert.ok(Array.isArray(history.history));
     assert.equal(history.history.length, 1);
   });
 
-  test('error normalization strictly protects credentials and never leaks raw secret tokens', () => {
-    const secretKey = 'sk-proj-super-secret-production-token-99999';
+  test('error normalization strictly protects credentials and never leaks raw secret tokens across all providers', () => {
+    const providers = ['gemini', 'groq', 'anthropic', 'openai'];
+    const secretKey = 'super-secret-production-token-99999';
 
-    // Simulate an error body that might contain raw request details
-    const rawError = {
-      error: {
-        message: `Unauthorized access with token ${secretKey}`,
-        code: 'invalid_api_key'
-      }
-    };
+    for (const p of providers) {
+      const rawError = {
+        error: {
+          message: `Unauthorized access with token ${secretKey}`,
+          code: 'invalid_api_key'
+        }
+      };
 
-    const normOai = normalizeProviderError('openai', 401, rawError);
-    assert.equal(normOai.category, ERROR_CATEGORIES.UNAUTHORIZED);
-    assert.equal(normOai.userMessage.includes(secretKey), false, 'Normalized error must never leak key to UI');
-
-    const normAnt = normalizeProviderError('anthropic', 401, rawError);
-    assert.equal(normAnt.category, ERROR_CATEGORIES.UNAUTHORIZED);
-    assert.equal(normAnt.userMessage.includes(secretKey), false, 'Anthropic normalized error must never leak key to UI');
+      const norm = normalizeProviderError(p, 401, rawError);
+      assert.equal(norm.category, ERROR_CATEGORIES.INVALID_API_KEY);
+      assert.equal(norm.userMessage.includes(secretKey), false, `Provider ${p} normalized error must never leak key to UI`);
+    }
   });
 
-  test('test outgoing request header structures for Anthropic and OpenAI', () => {
-    // Anthropic requires x-api-key, anthropic-version, and dangerous browser access flag
-    const testAntKey = 'sk-ant-api-header-check-123';
+  test('test outgoing request authentication structures for all 4 providers', () => {
+    // Anthropic requires x-api-key header
+    const testAntKey = 'sk-ant-check-123';
     claudeClient.setApiKey(testAntKey);
-    // Verified in mock or inspection of headers:
-    const antExpectedHeaders = {
-      'x-api-key': testAntKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'content-type': 'application/json'
-    };
-    assert.equal(antExpectedHeaders['x-api-key'], testAntKey);
-    assert.equal(antExpectedHeaders['anthropic-dangerous-direct-browser-access'], 'true');
+    assert.equal(claudeClient.hasApiKey(), true);
 
-    // OpenAI requires Authorization: Bearer <key>
-    const testOaiKey = 'sk-openai-bearer-check-456';
+    // OpenAI requires Authorization: Bearer
+    const testOaiKey = 'sk-openai-check-456';
     openAiClient.setApiKey(testOaiKey);
-    const oaiExpectedHeaders = {
-      'Authorization': `Bearer ${testOaiKey}`,
-      'Content-Type': 'application/json'
-    };
-    assert.equal(oaiExpectedHeaders['Authorization'], `Bearer ${testOaiKey}`);
+    assert.equal(openAiClient.hasApiKey(), true);
 
-    claudeClient.clearApiKey();
-    openAiClient.clearApiKey();
+    // Gemini requires ?key= parameter in official REST URL
+    const testGemKey = 'AIzaSy-check-789';
+    geminiClient.setApiKey(testGemKey);
+    assert.equal(geminiClient.hasApiKey(), true);
+
+    // Groq requires Authorization: Bearer
+    const testGroqKey = 'gsk-check-012';
+    groqClient.setApiKey(testGroqKey);
+    assert.equal(groqClient.hasApiKey(), true);
+
+    providerManager.clearAllKeys();
   });
 
   test('result limiting and round bounds strictly enforce provider-neutral privacy contracts', () => {
