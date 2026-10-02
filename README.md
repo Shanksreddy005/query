@@ -1,13 +1,13 @@
 # QueryMind — Privacy-First Natural Language Analytics Engine
 
 > **"Ask your CSV questions in plain English."**  
-> A 100% client-side, browser-native analytics agent powered by **DuckDB-WASM** and **BYOK Anthropic Claude**.
+> A 100% client-side, browser-native analytics agent powered by **DuckDB-WASM** with multi-provider BYOK support for **Anthropic Claude** and **OpenAI Responses API**.
 
-[![Test Suite](https://img.shields.io/badge/tests-26%20passed-34c97b.svg)](file:///tests/)
+[![Test Suite](https://img.shields.io/badge/tests-49%20passed-34c97b.svg)](file:///tests/)
 [![Engine: DuckDB-WASM](https://img.shields.io/badge/Engine-DuckDB--WASM-FFF000.svg)](https://duckdb.org/docs/api/wasm/overview)
-[![AI: Claude BYOK](https://img.shields.io/badge/AI-Claude%20(Anthropic)-D97706.svg)](https://docs.anthropic.com/en/docs/initial-setup)
+[![AI: Claude & OpenAI](https://img.shields.io/badge/AI-Claude%20%7C%20OpenAI-4f8ef7.svg)](file:///src/agent/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Static Deployment](https://img.shields.io/badge/Architecture-100%25%20Client--Side-4f8ef7.svg)](#architecture)
+[![Static Deployment](https://img.shields.io/badge/Architecture-100%25%20Client--Side-34c97b.svg)](#architecture)
 
 ---
 
@@ -18,11 +18,12 @@ QueryMind bridges the gap between raw data files and executive business answers 
 Traditional AI-powered analytics tools force you to upload sensitive spreadsheets and enterprise databases to cloud servers. **QueryMind operates completely inside your browser:**
 
 > ### 🔒 Data Privacy Guarantee:
-> **The full uploaded dataset remains local. Only explicitly permitted AI context — user question, schema metadata, limited sample rows, SQL/tool interactions, and capped query results — may be sent to Anthropic.**
+> **The full uploaded dataset remains local. Only explicitly permitted AI context — user question, schema metadata, limited sample rows, SQL/tool interactions, and capped query results — may be sent to the configured AI provider (Anthropic or OpenAI).**
 
 - **DuckDB-WASM** runs inside a Web Worker on your computer, parsing your CSV into an in-memory database and computing SQL aggregations locally.
-- **Claude (Anthropic API)** acts as an expert query planner and data analyst, generating verified SQL queries and summarizing results.
-- **Zero Application Backend:** There is no server, database, or serverless compute processing your files. The app is 100% static.
+- **Provider-Neutral Agent Boundary:** Supports both **Anthropic Claude** (`claude-sonnet-5-5`, `claude-haiku-4-5`) and **OpenAI Responses API** (`gpt-4o`, `gpt-4o-mini`) via Bring-Your-Own-Key (BYOK).
+- **Client-Side Tool Use (`run_sql`):** The LLM requests SQL execution via native tool schemas. The browser agent controller validates with SQL Guard, executes in DuckDB-WASM, and returns capped results (`MAX_AI_ROWS = 25`). Neither LLM executes SQL directly.
+- **Zero Application Backend:** There is no server, database, proxy, or serverless compute processing your files. The app is 100% static.
 
 ---
 
@@ -37,55 +38,64 @@ Traditional AI-powered analytics tools force you to upload sensitive spreadsheet
               ┌─────────────────────────┴─────────────────────────┐
               │                                                   │
               ▼                                                   ▼
-   ┌───────────────────────┐                           ┌─────────────────────┐
-   │     DuckDB-WASM       │                           │  Claude API (BYOK)  │
-   │  Browser Web Worker   │                           │ Anthropic /messages │
-   │ (Virtual Filesystem)  │                           │ direct CORS request │
-   └──────────┬────────────┘                           └──────────┬──────────┘
-              │                                                   │
-              │ Local SQL Execution                               │ Tool Call:
-              │ (Full dataset stays local)                        │ run_sql({query})
-              │                                                   │
-              └─────────────────────────┬─────────────────────────┘
+   ┌───────────────────────┐                        ┌───────────────────────────┐
+   │     DuckDB-WASM       │                        │     Provider Manager      │
+   │  Browser Web Worker   │                        │ ┌───────────────┬───────┐ │
+   │ (Virtual Filesystem)  │                        │ │ Claude Adapter│ OpenAI│ │
+   └──────────┬────────────┘                        │ └───────┬───────┴───┬───┘ │
+              │                                     └─────────┼───────────┼─────┘
+              │ Local SQL Execution                           │           │
+              │ (Full dataset stays local)                    ▼           ▼
+              │                                       Anthropic API   OpenAI Responses API
+              │                                       /v1/messages    /v1/responses
+              │                                               │           │
+              └─────────────────────────┬─────────────────────┴───────────┘
                                         │
                                         ▼
                          ┌─────────────────────────────┐
                          │    Agent Controller Loop    │
-                         │  - MAX_AGENT_ROUNDS = 5     │
+                         │  - Normalized AI Events     │
                          │  - Strict SELECT SQL Guard  │
                          │  - Auto Error Correction    │
-                         │  - MAX_CLAUDE_ROWS = 25     │
+                         │  - MAX_AGENT_ROUNDS = 5     │
+                         │  - MAX_AI_ROWS = 25         │
                          │  - MAX_DISPLAY_ROWS = 100   │
                          │  - Business Insight         │
                          └─────────────────────────────┘
 ```
 
-### The Separation of Responsibilities:
-- **Claude:** Understands the question, inspects the schema, generates SQL, requests tool execution, and interprets capped results.
-- **DuckDB-WASM:** Owns the dataset, executes SQL locally in WebAssembly, and returns formatted rows.
-- **Browser JavaScript:** Controls permissions, validates SQL safety, enforces row limits, and coordinates the UI.
+---
+
+## 3. Supported Models & Providers
+
+Configurable directly from the **Key Settings** modal:
+
+| Provider | Model | Model ID | Recommended Use |
+|---|---|---|---|
+| **Anthropic** | Claude Sonnet 5.5 | `claude-sonnet-5-5` | Primary · Deep analytical reasoning & SQL generation |
+| **Anthropic** | Claude Haiku 4.5 | `claude-haiku-4-5` | Fast · Lower cost & rapid iteration |
+| **OpenAI** | GPT-4o | `gpt-4o` | Primary · Flagship high-intelligence model |
+| **OpenAI** | GPT-4o Mini | `gpt-4o-mini` | Fast · Lightweight & cost-effective |
 
 ---
 
-## 3. Key Features
+## 4. BYOK Security Model Disclosure
 
-- **Bring Your Own Key (BYOK):** Direct connection to Anthropic Claude via client-side CORS headers (`anthropic-dangerous-direct-browser-access: true`).
-- **Memory-Only Key Storage:** API keys reside exclusively in JavaScript runtime closure. Zero storage in `localStorage`, `IndexedDB`, or cookies.
-- **Dynamic CSV Ingestion:** Drag-and-drop any `.csv` file. DuckDB infers column types (`INTEGER`, `DOUBLE`, `VARCHAR`, `DATE`, `TIMESTAMP`) automatically.
-- **Client-Side Tool Calling:** Claude requests the `run_sql` tool, which browser JavaScript validates with a SELECT-only SQL Guard and executes in DuckDB.
-- **Automatic Error Correction Loop:** If DuckDB throws a syntax or column error, the error context is sent back to Claude to self-correct within `MAX_AGENT_ROUNDS = 5`.
-- **Capped Result Limits:** Protects token usage and browser performance with `MAX_CLAUDE_ROWS = 25` and `MAX_DISPLAY_ROWS = 100`.
-- **6-Stage Process Trace:** Real-time typewriter trace (`waiting` → `running` → `done`).
-- **AI Business Takeaways:** Executive 2-sentence summary grounded strictly in the returned query records.
-- **Built-in Demo Mode:** Bundled sample dataset (`sample-data/customers.csv`) for instant testing without an immediate CSV upload.
+> **BYOK Security Model:**  
+> The API key is supplied by the user and retained only in JavaScript runtime memory. QueryMind does not persist, transmit, or proxy the key through its own infrastructure. Because the key is used directly by the browser, users should only enter keys they are comfortable using in a client-side application. Closing or refreshing this tab wipes all keys immediately.
+
+- **Zero Browser Storage:** Keys are never stored in `localStorage`, `sessionStorage`, `IndexedDB`, cookies, or browser cache.
+- **Zero URL Leakage:** Keys are never passed via URL search parameters or `history.pushState`.
+- **Zero Log Leakage:** Normalized error objects sanitize sensitive error bodies to prevent raw token display.
+- **Independent Closures:** Storing or switching between Anthropic and OpenAI keys maintains completely separate memory closures.
 
 ---
 
-## 4. Getting Started
+## 5. Getting Started
 
 ### Prerequisites
 - Node.js (v18 or later)
-- An Anthropic Claude API key ([Get an API key](https://console.anthropic.com/))
+- An Anthropic API key ([Console](https://console.anthropic.com/)) or an OpenAI API key ([Platform](https://platform.openai.com/))
 
 ### Installation
 ```bash
@@ -100,64 +110,41 @@ npm install
 ### Development Server
 ```bash
 npm run dev
-# Opens at http://localhost:3000 with hot module reloading
+# Starts at http://localhost:3000 with HMR
 ```
 
 ### Production Build (Static Site)
 ```bash
 npm run build
-# Outputs static files to dist/
+# Outputs pure static bundle to dist/
 ```
 
-You can preview the production build locally:
+To preview the production build locally:
 ```bash
 npm run preview
-# Serves dist/ statically with COOP/COEP headers
+# Serves dist/ statically with COOP/COEP headers on http://localhost:3000
 ```
-
----
-
-## 5. BYOK Security & Billing Warning
-
-> [!WARNING]
-> **API Key Ownership & Billing**
-> When you enter your Anthropic API key into QueryMind:
-> 1. Requests are made directly from your browser to `https://api.anthropic.com/v1/messages`.
-> 2. You are directly responsible for your own Anthropic API usage and billing costs.
-> 3. Your key is stored **only in memory** for the active browser session. Refreshing or closing the tab wipes it immediately.
-> 4. Never enter an API key on an untrusted or shared device.
-
-Supported Models:
-- `claude-sonnet-5-5` (Default · High Capability)
-- `claude-haiku-4-5` (Fast · Lower Cost)
 
 ---
 
 ## 6. Testing
 
-QueryMind includes a comprehensive test suite covering DuckDB execution, CSV loading, dynamic schema extraction, SQL guard enforcement, memory-only key audits, and analytical queries.
+QueryMind includes a comprehensive test suite (49 automated tests across 8 test suites) verifying DuckDB ingestion, SQL Guard, memory-only key audits, the provider compatibility matrix, and analytical queries:
 
 ```bash
 npm test
 ```
 
-Test Suites:
-1. `tests/duckdb_engine.test.js` — DuckDB table creation, CSV parsing, and query execution.
-2. `tests/sql_guard.test.js` — SELECT-only enforcement, mutation rejection, and injection guards.
-3. `tests/byok_security.test.js` — Zero-persistence audit, closure memory verification, and row capping.
-4. `tests/agent_loop.test.js` — Tool-use lifecycle, error-correction loop, and max 5 rounds termination.
-5. `tests/analytical_queries.test.js` — 5 representative analytical questions executed on `sample-data/customers.csv`.
+### Test Matrix:
+1. `tests/provider_compatibility.test.js` — Symmetrical test matrix verifying key lifecycle, provider/model selection, native tool schemas, `run_sql` call parsing, tool result formatting, error feedback, round bounds, result caps, and normalized error mapping across both **Claude** and **OpenAI**.
+2. `tests/byok_security.test.js` — Zero-persistence audits, closure isolation, header inspection, URL safety, and absence of backend files.
+3. `tests/duckdb_engine.test.js` — In-memory DuckDB table creation, CSV parsing, dynamic schema extraction, and query execution.
+4. `tests/sql_guard.test.js` — SELECT-only enforcement, mutation rejection, and injection guards.
+5. `tests/agent_loop.test.js` — Client-side tool loop, schema prompt injection, and error correction.
+6. `tests/analytical_queries.test.js` — 5 golden analytical queries executed against DuckDB.
 
 ---
 
-## 7. Limitations
-
-- **File Formats:** Currently accepts `.csv` files. Support for `.parquet` and `.json` is on the roadmap.
-- **Dataset Size:** Datasets up to 100MB / ~500,000 rows run comfortably within browser WebAssembly memory limits.
-- **Browser Compatibility:** Requires a modern browser supporting WebAssembly and Web Workers (Chrome, Firefox, Safari, Edge).
-
----
-
-## 8. License
+## 7. License
 
 MIT License. See [LICENSE](LICENSE) for details.

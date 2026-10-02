@@ -954,6 +954,47 @@ table.rt tr:hover td {
   margin-top: 4px;
 }
 
+.provider-radio-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.provider-radio-card {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.provider-radio-card:hover {
+  background: var(--surface3);
+  border-color: var(--border2);
+}
+
+.provider-radio-card.active {
+  border-color: var(--accent);
+  background: rgba(79, 142, 247, 0.1);
+}
+
+.provider-radio-card input[type="radio"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.provider-radio-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 .privacy-callout {
   display: flex;
   align-items: flex-start;

@@ -4,9 +4,10 @@
  */
 
 import { validateSql } from '../security/sql_guard.js';
+import { MAX_AI_ROWS, MAX_DISPLAY_ROWS } from '../agent/models.js';
 
-export const MAX_CLAUDE_ROWS = 25;
-export const MAX_DISPLAY_ROWS = 100;
+export { MAX_AI_ROWS, MAX_DISPLAY_ROWS };
+export const MAX_CLAUDE_ROWS = MAX_AI_ROWS; // Backward compatibility alias
 
 /**
  * Normalizes any cell value into a displayable string or clean primitive
@@ -86,8 +87,8 @@ export async function executeQuery(conn, rawSql, allowedTables = null) {
       return columns.map(col => formatCellValue(row[col]));
     });
 
-    // 4. Format capped rows for Claude inspection (up to MAX_CLAUDE_ROWS)
-    const claudeRows = rawRows.slice(0, MAX_CLAUDE_ROWS).map(row => {
+    // 4. Format capped rows for AI inspection (up to MAX_AI_ROWS)
+    const aiRows = rawRows.slice(0, MAX_AI_ROWS).map(row => {
       const obj = {};
       columns.forEach(col => {
         const val = row[col];
@@ -106,7 +107,8 @@ export async function executeQuery(conn, rawSql, allowedTables = null) {
       success: true,
       columns,
       rows: displayRows,
-      claudeRows,
+      aiRows,
+      claudeRows: aiRows, // Backward compatibility alias
       totalRowCount,
       displayRowCount: displayRows.length,
       isCapped: totalRowCount > MAX_DISPLAY_ROWS,

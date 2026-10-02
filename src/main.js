@@ -16,7 +16,7 @@ import { InsightView } from './ui/insight_view.js';
 import { HistoryView } from './ui/history_view.js';
 import { renderPrivacyIndicator } from './ui/privacy_badge.js';
 import { runAgentLoop } from './agent/agent_loop.js';
-import { hasApiKey } from './agent/claude_client.js';
+import { providerManager } from './agent/provider_manager.js';
 
 let activeDataset = null;
 let isRunning = false;
@@ -97,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Prompt for key on startup if not already entered
-  if (!hasApiKey()) {
+  if (!providerManager.hasAnyKey()) {
     apiKeyModal.show();
   } else {
     uploaderView.loadDemoDataset();
@@ -197,11 +197,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Check if API key is present
-    if (!hasApiKey()) {
-      // Prompt user to enter Claude key
+    // Check if API key is present for active provider
+    if (!providerManager.hasApiKey()) {
+      const provName = providerManager.getActiveProvider() === 'openai' ? 'OpenAI' : 'Anthropic Claude';
       const proceed = confirm(
-        'Natural-language analysis requires your Anthropic Claude API key.\n\nClick OK to enter your API key, or Cancel to execute raw SQL directly.'
+        `Natural-language analysis requires your ${provName} API key.\n\nClick OK to enter your API key, or Cancel to execute raw SQL directly.`
       );
       if (proceed) {
         apiKeyModal.show();

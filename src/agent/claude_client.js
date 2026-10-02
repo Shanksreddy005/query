@@ -4,12 +4,15 @@
  * The API key is stored strictly in memory closure and never written to browser storage.
  */
 
+import { PROVIDERS, MODEL_REGISTRY, getDefaultModel } from './models.js';
+import { normalizeProviderError } from './error_normalizer.js';
+
 export const MODELS = {
   SONNET: 'claude-sonnet-5-5',
   HAIKU: 'claude-haiku-4-5'
 };
 
-export const DEFAULT_MODEL = MODELS.SONNET;
+export const DEFAULT_MODEL = getDefaultModel(PROVIDERS.ANTHROPIC);
 
 // Private closure variable for memory-only storage
 let memoryApiKey = null;
@@ -45,7 +48,7 @@ export function clearApiKey() {
  * @param {string} model
  */
 export function setActiveModel(model) {
-  if (Object.values(MODELS).includes(model)) {
+  if (MODEL_REGISTRY[PROVIDERS.ANTHROPIC]?.[model]) {
     activeModel = model;
   }
 }
@@ -62,12 +65,12 @@ export function getActiveModel() {
  * Probes the Anthropic API to verify key validity before unlocking the workspace
  * @param {string} testKey
  * @param {string} [model]
- * @returns {Promise<{ valid: boolean, error?: string }>}
+ * @returns {Promise<{ valid: boolean, error?: string, normalizedError?: Object }>}
  */
 export async function verifyApiKey(testKey, model = activeModel) {
   const keyToTest = (testKey || memoryApiKey || '').trim();
   if (!keyToTest) {
-    return { valid: false, error: 'API key is required.' };
+    return { valid: false, error: 'Anthropic API key is required.' };
   }
 
   try {
@@ -91,20 +94,18 @@ export async function verifyApiKey(testKey, model = activeModel) {
     }
 
     const errorBody = await res.json().catch(() => ({}));
-    const message = errorBody?.error?.message || `HTTP ${res.status} ${res.statusText}`;
-
-    if (res.status === 401) {
-      return { valid: false, error: 'Invalid Anthropic API key. Please check your credentials.' };
-    }
-    if (res.status === 429) {
-      return { valid: false, error: 'Rate limit reached or quota exhausted on this API key.' };
-    }
-
-    return { valid: false, error: `Anthropic API error: ${message}` };
-  } catch (err) {
+    const norm = normalizeProviderError('anthropic', res.status, errorBody);
     return {
       valid: false,
-      error: `Network error connecting to Anthropic API: ${err.message}. Check your internet connection.`
+      error: norm.userMessage,
+      normalizedError: norm
+    };
+  } catch (err) {
+    const norm = normalizeProviderError('anthropic', null, null, err);
+    return {
+      valid: false,
+      error: norm.userMessage,
+      normalizedError: norm
     };
   }
 }
@@ -127,7 +128,7 @@ export async function callClaudeMessages({
   maxTokens = 1024
 }) {
   if (!memoryApiKey) {
-    throw new Error('No Anthropic API key configured. Please enter your key in the top bar.');
+    throw normalizeProviderError('anthropic', 401, { error: { message: 'No Anthropic API key configured.' } });
   }
 
   const payload = {
@@ -144,30 +145,33 @@ export async function callClaudeMessages({
     payload.tools = tools;
   }
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': memoryApiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
+  let res;
+  try {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': memoryApiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (netErr) {
+    throw normalizeProviderError('anthropic', null, null, netErr);
+  }
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    const errorMessage = errorBody?.error?.message || `HTTP ${res.status}: ${res.statusText}`;
+    const norm = normalizeProviderError('anthropic', res.status, errorBody);
 
     if (res.status === 401) {
       clearApiKey();
-      throw new Error(`Authentication error (401): ${errorMessage}. API key has been cleared.`);
-    }
-    if (res.status === 429) {
-      throw new Error(`Rate limit exceeded (429): ${errorMessage}`);
     }
 
-    throw new Error(`Anthropic API error (${res.status}): ${errorMessage}`);
+    const err = new Error(norm.userMessage);
+    err.normalized = norm;
+    throw err;
   }
 
   return await res.json();

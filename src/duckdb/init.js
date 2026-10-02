@@ -40,7 +40,8 @@ export async function getDuckDB() {
     } else {
       // Node.js test environment fallback
       try {
-        const duckdbModule = await import('duckdb');
+        const nodeMod = 'duckdb';
+        const duckdbModule = await import(/* @vite-ignore */ nodeMod);
         const duckdb = duckdbModule.default || duckdbModule;
         const db = new duckdb.Database(':memory:');
         const conn = db.connect();

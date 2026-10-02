@@ -82,9 +82,12 @@ export async function loadCsvIntoDuckDB({ db, conn, source, filename }) {
       `);
     } else {
       // In-memory string in Node
-      const fs = await import('fs');
-      const path = await import('path');
-      const os = await import('os');
+      const fsMod = 'fs';
+      const pathMod = 'path';
+      const osMod = 'os';
+      const fs = await import(/* @vite-ignore */ fsMod);
+      const path = await import(/* @vite-ignore */ pathMod);
+      const os = await import(/* @vite-ignore */ osMod);
       const tempPath = path.join(os.tmpdir(), `querymind_test_${Date.now()}.csv`).replace(/\\/g, '/');
       fs.writeFileSync(tempPath, typeof source === 'string' ? source : Buffer.from(source));
       await conn.query(`

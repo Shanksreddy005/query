@@ -1,15 +1,16 @@
 /**
  * Client-Side Tool-Based Agent Loop
- * Coordinates Claude reasoning, client-side SQL execution via DuckDB-WASM, and automatic self-correction.
+ * Coordinates AI reasoning, client-side SQL execution via DuckDB-WASM, and automatic self-correction.
+ * Consumes normalized events from providerManager with zero provider-specific conditionals.
  * Hard capped at MAX_AGENT_ROUNDS = 5.
  */
 
-import { callClaudeMessages } from './claude_client.js';
-import { AGENT_TOOLS } from './tools.js';
+import { providerManager, NormalizedConversation } from './provider_manager.js';
+import { MAX_AGENT_ROUNDS } from './models.js';
 import { buildSystemPrompt } from './prompts.js';
 import { executeQuery } from '../duckdb/executor.js';
 
-export const MAX_AGENT_ROUNDS = 5;
+export { MAX_AGENT_ROUNDS };
 
 /**
  * Runs the full natural-language to SQL analytical loop
@@ -47,11 +48,7 @@ export async function runAgentLoop({
   onTraceStep(1, 'Inspecting the dataset schema', `Target table "${datasetInfo.tableName}" (${datasetInfo.columns.length} columns, ${datasetInfo.totalRows.toLocaleString()} rows)`);
 
   const systemPrompt = buildSystemPrompt(datasetInfo);
-
-  // Initialize conversation history for this query
-  const messages = [
-    { role: 'user', content: q }
-  ];
+  const conversation = new NormalizedConversation(q);
 
   let currentRound = 0;
   let finalSql = null;
@@ -67,35 +64,19 @@ export async function runAgentLoop({
     // Process Trace Step 4: Generating SQL
     onTraceStep(3, 'Generating SQL', `Synthesizing DuckDB SQL query (Turn ${currentRound}/${MAX_AGENT_ROUNDS})...`);
 
-    // Call Anthropic Messages API
-    const response = await callClaudeMessages({
-      system: systemPrompt,
-      tools: AGENT_TOOLS,
-      messages: messages
-    });
+    // Normalized turn execution across active AI provider (Claude or OpenAI)
+    const turnEvent = await providerManager.sendTurn(conversation, systemPrompt);
 
-    const assistantContent = response.content || [];
-    messages.push({ role: 'assistant', content: assistantContent });
-
-    // Look for tool_use blocks
-    const toolUseBlocks = assistantContent.filter(b => b.type === 'tool_use' && b.name === 'run_sql');
-    const textBlocks = assistantContent.filter(b => b.type === 'text');
-
-    if (textBlocks.length > 0) {
-      finalAnswer += textBlocks.map(b => b.text).join('\n\n');
-    }
-
-    // If Claude called the client-side run_sql tool:
-    if (toolUseBlocks.length > 0) {
-      const toolUse = toolUseBlocks[0];
-      const generatedSql = toolUse.input?.query || '';
+    // If model requested tool execution:
+    if (turnEvent.type === 'tool_call' && turnEvent.toolName === 'run_sql') {
+      const generatedSql = turnEvent.arguments?.query || '';
       finalSql = generatedSql;
       onSqlGenerated(generatedSql);
 
       // Process Trace Step 5: Running SQL locally in DuckDB
       onTraceStep(4, 'Running SQL locally in DuckDB', `Executing verified query against in-memory table...`);
 
-      // CLIENT-SIDE EXECUTION
+      // CLIENT-SIDE EXECUTION IN DUCKDB-WASM
       const execResult = await executeQuery(conn, generatedSql, [datasetInfo.tableName]);
 
       if (execResult.success) {
@@ -104,42 +85,36 @@ export async function runAgentLoop({
         // Process Trace Step 6: Checking results
         onTraceStep(5, 'Checking the results', `Retrieved ${execResult.totalRowCount} row(s) in ${execResult.executionTimeMs}ms`);
 
-        // Send capped results back to Claude
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: JSON.stringify({
-                status: 'success',
-                execution_time_ms: execResult.executionTimeMs,
-                total_rows: execResult.totalRowCount,
-                is_capped: execResult.isCapped,
-                columns: execResult.columns,
-                sample_rows: execResult.claudeRows
-              })
-            }
-          ]
+        // Send capped results back to AI model
+        conversation.addToolResult({
+          toolCallId: turnEvent.toolCallId,
+          toolName: 'run_sql',
+          isError: false,
+          content: JSON.stringify({
+            status: 'success',
+            execution_time_ms: execResult.executionTimeMs,
+            total_rows: execResult.totalRowCount,
+            is_capped: execResult.isCapped,
+            columns: execResult.columns,
+            sample_rows: execResult.aiRows || execResult.claudeRows
+          })
         });
       } else {
         // SQL ERROR CORRECTION LOOP
-        onTraceStep(4, 'Correcting SQL query', `DuckDB error: ${execResult.error}. Sending error context to Claude for self-correction...`);
+        onTraceStep(4, 'Correcting SQL query', `DuckDB error: ${execResult.error}. Sending error context to model for self-correction...`);
 
-        messages.push({
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              is_error: true,
-              content: `DuckDB execution failed with error: ${execResult.error}. Please inspect the table schema and column names, correct the SQL query, and call run_sql again.`
-            }
-          ]
+        conversation.addToolResult({
+          toolCallId: turnEvent.toolCallId,
+          toolName: 'run_sql',
+          isError: true,
+          content: `DuckDB execution failed with error: ${execResult.error}. Please inspect the table schema and column names, correct the SQL query, and call run_sql again.`
         });
       }
+    } else if (turnEvent.type === 'final') {
+      // Model provided final analytical narrative
+      finalAnswer = turnEvent.text || '';
+      break;
     } else {
-      // Claude produced a final text response without requesting another tool call
       break;
     }
   }
