@@ -43,7 +43,18 @@ export function clearApiKey() {
  */
 export function setActiveModel(modelId) {
   const cleanId = (modelId || '').replace(/^models\//, '');
-  if (MODEL_REGISTRY[PROVIDERS.GEMINI]?.[cleanId]) {
+  if (cleanId) {
+    if (!MODEL_REGISTRY[PROVIDERS.GEMINI]?.[cleanId]) {
+      registerModel(PROVIDERS.GEMINI, {
+        id: cleanId,
+        label: cleanId,
+        isDefault: false,
+        freeTier: true,
+        toolCalling: true,
+        apiStyle: 'gemini',
+        description: 'Custom model / preview route'
+      });
+    }
     activeModel = cleanId;
   }
 }

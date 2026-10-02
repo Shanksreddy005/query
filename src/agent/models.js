@@ -16,65 +16,98 @@ export const PROVIDERS = {
 
 export const MODEL_REGISTRY = {
   [PROVIDERS.GEMINI]: {
+    // --- Gemini Flash Models (Google AI Studio Free Tier) ---
     'gemini-2.0-flash': {
       id: 'gemini-2.0-flash',
       label: 'Gemini 2.0 Flash',
       provider: PROVIDERS.GEMINI,
+      family: 'Flash',
       isDefault: true,
       freeTier: true,
       toolCalling: true,
       apiStyle: 'gemini',
       description: 'Recommended · Google AI Studio Free Tier'
     },
-    'gemini-1.5-flash': {
-      id: 'gemini-1.5-flash',
-      label: 'Gemini 1.5 Flash',
-      provider: PROVIDERS.GEMINI,
-      isDefault: false,
-      freeTier: true,
-      toolCalling: true,
-      apiStyle: 'gemini',
-      description: 'Standard Free Tier · Fast & Multimodal'
-    },
-    'gemini-1.5-pro': {
-      id: 'gemini-1.5-pro',
-      label: 'Gemini 1.5 Pro',
-      provider: PROVIDERS.GEMINI,
-      isDefault: false,
-      freeTier: true,
-      toolCalling: true,
-      apiStyle: 'gemini',
-      description: 'Complex Analytical Reasoning'
-    },
-    'gemini-2.0-flash-lite': {
-      id: 'gemini-2.0-flash-lite',
-      label: 'Gemini 2.0 Flash-Lite',
-      provider: PROVIDERS.GEMINI,
-      isDefault: false,
-      freeTier: true,
-      toolCalling: true,
-      apiStyle: 'gemini',
-      description: 'Lightweight & Ultra-Fast'
-    },
     'gemini-2.5-flash': {
       id: 'gemini-2.5-flash',
       label: 'Gemini 2.5 Flash',
       provider: PROVIDERS.GEMINI,
+      family: 'Flash',
       isDefault: false,
       freeTier: true,
       toolCalling: true,
       apiStyle: 'gemini',
-      description: 'Preview (if available on your account)'
+      description: 'Free Tier · Generation 2.5 Flash'
+    },
+    'gemini-3-flash': {
+      id: 'gemini-3-flash',
+      label: 'Gemini 3 Flash',
+      provider: PROVIDERS.GEMINI,
+      family: 'Flash',
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Free Tier · Generation 3 Flash'
+    },
+    'gemini-1.5-flash': {
+      id: 'gemini-1.5-flash',
+      label: 'Gemini 1.5 Flash',
+      provider: PROVIDERS.GEMINI,
+      family: 'Flash',
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Standard Free Tier · High Capacity'
+    },
+
+    // --- Gemini Flash-Lite Models (Google AI Studio Free Tier) ---
+    'gemini-3.1-flash-lite': {
+      id: 'gemini-3.1-flash-lite',
+      label: 'Gemini 3.1 Flash-Lite',
+      provider: PROVIDERS.GEMINI,
+      family: 'Flash-Lite',
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Free Tier · High-Throughput 3.1'
     },
     'gemini-2.5-flash-lite': {
       id: 'gemini-2.5-flash-lite',
       label: 'Gemini 2.5 Flash-Lite',
       provider: PROVIDERS.GEMINI,
+      family: 'Flash-Lite',
       isDefault: false,
       freeTier: true,
       toolCalling: true,
       apiStyle: 'gemini',
-      description: 'Lightweight Preview'
+      description: 'Free Tier · Lightweight 2.5'
+    },
+    'gemini-2.0-flash-lite': {
+      id: 'gemini-2.0-flash-lite',
+      label: 'Gemini 2.0 Flash-Lite',
+      provider: PROVIDERS.GEMINI,
+      family: 'Flash-Lite',
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Free Tier · Fast & Efficient 2.0'
+    },
+
+    // --- Gemini Pro & Complex Reasoning ---
+    'gemini-1.5-pro': {
+      id: 'gemini-1.5-pro',
+      label: 'Gemini 1.5 Pro',
+      provider: PROVIDERS.GEMINI,
+      family: 'Pro',
+      isDefault: false,
+      freeTier: true,
+      toolCalling: true,
+      apiStyle: 'gemini',
+      description: 'Complex Analytical Reasoning'
     }
   },
   [PROVIDERS.GROQ]: {

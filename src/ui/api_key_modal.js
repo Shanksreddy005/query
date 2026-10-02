@@ -109,6 +109,17 @@ export class ApiKeyModal {
             <select id="modelSelect" class="form-select">
               <!-- Populated dynamically -->
             </select>
+            <div id="customModelWrap" style="display: none; margin-top: 8px;">
+              <label class="form-label" for="customModelInput" style="font-size: 11.5px;">Custom / Preview Model ID or Route</label>
+              <input 
+                type="text" 
+                id="customModelInput" 
+                class="form-input mono" 
+                placeholder="e.g. gemini-3.1-flash-live-preview, gemini-3.5-flash" 
+                autocomplete="off" 
+                spellcheck="false" 
+              />
+            </div>
           </div>
 
           <div class="form-group">
@@ -215,9 +226,32 @@ export class ApiKeyModal {
       toggleBtn.textContent = input.type === 'password' ? '👁' : '🔒';
     });
 
+    const customWrap = document.getElementById('customModelWrap');
+    const customInput = document.getElementById('customModelInput');
+
     modelSelect.addEventListener('change', () => {
-      providerManager.setActiveModel(this.selectedProvider, modelSelect.value);
+      if (modelSelect.value === '__custom__') {
+        if (customWrap) customWrap.style.display = 'block';
+        if (customInput) {
+          customInput.focus();
+          if (customInput.value.trim()) {
+            providerManager.setActiveModel(this.selectedProvider, customInput.value.trim());
+          }
+        }
+      } else {
+        if (customWrap) customWrap.style.display = 'none';
+        providerManager.setActiveModel(this.selectedProvider, modelSelect.value);
+      }
     });
+
+    if (customInput) {
+      customInput.addEventListener('input', () => {
+        const val = customInput.value.trim();
+        if (val) {
+          providerManager.setActiveModel(this.selectedProvider, val);
+        }
+      });
+    }
 
     // Fallback toggle event
     fallbackCheckbox.addEventListener('change', () => {
@@ -253,14 +287,50 @@ export class ApiKeyModal {
 
   refreshModelOptions() {
     const modelSelect = document.getElementById('modelSelect');
+    const customWrap = document.getElementById('customModelWrap');
+    const customInput = document.getElementById('customModelInput');
     if (!modelSelect) return;
 
     const models = getModelsForProvider(this.selectedProvider);
     const activeModel = providerManager.getActiveModel(this.selectedProvider);
 
-    modelSelect.innerHTML = models
-      .map(m => `<option value="${m.id}" ${m.id === activeModel ? 'selected' : ''}>${m.label} (${m.description})</option>`)
-      .join('');
+    if (this.selectedProvider === 'gemini') {
+      const flashModels = models.filter(m => m.family === 'Flash');
+      const flashLiteModels = models.filter(m => m.family === 'Flash-Lite');
+      const otherModels = models.filter(m => m.family !== 'Flash' && m.family !== 'Flash-Lite');
+
+      let html = '';
+      if (flashModels.length > 0) {
+        html += `<optgroup label="⚡ Gemini Flash (Free Tier)">`;
+        html += flashModels.map(m => `<option value="${m.id}" ${m.id === activeModel ? 'selected' : ''}>${m.label} — ${m.description}</option>`).join('');
+        html += `</optgroup>`;
+      }
+      if (flashLiteModels.length > 0) {
+        html += `<optgroup label="🪶 Gemini Flash-Lite (Free Tier)">`;
+        html += flashLiteModels.map(m => `<option value="${m.id}" ${m.id === activeModel ? 'selected' : ''}>${m.label} — ${m.description}</option>`).join('');
+        html += `</optgroup>`;
+      }
+      if (otherModels.length > 0) {
+        html += `<optgroup label="🧠 Gemini Pro & Reasoning">`;
+        html += otherModels.map(m => `<option value="${m.id}" ${m.id === activeModel ? 'selected' : ''}>${m.label} — ${m.description}</option>`).join('');
+        html += `</optgroup>`;
+      }
+      const isKnown = models.some(m => m.id === activeModel);
+      html += `<option value="__custom__" ${!isKnown ? 'selected' : ''}>✏️ Custom Model ID / Preview Route...</option>`;
+      modelSelect.innerHTML = html;
+
+      if (!isKnown && activeModel) {
+        if (customWrap) customWrap.style.display = 'block';
+        if (customInput) customInput.value = activeModel;
+      } else {
+        if (customWrap) customWrap.style.display = 'none';
+      }
+    } else {
+      if (customWrap) customWrap.style.display = 'none';
+      modelSelect.innerHTML = models
+        .map(m => `<option value="${m.id}" ${m.id === activeModel ? 'selected' : ''}>${m.label} (${m.description})</option>`)
+        .join('');
+    }
   }
 
   updateInputLabels() {
@@ -361,7 +431,10 @@ export class ApiKeyModal {
       providerManager.setActiveProvider(provider);
 
       let finalModel = modelSelect.value;
-      if (check.discoveredModels && check.discoveredModels.length > 0) {
+      if (finalModel === '__custom__') {
+        const customInput = document.getElementById('customModelInput');
+        finalModel = customInput?.value.trim() || 'gemini-2.0-flash';
+      } else if (check.discoveredModels && check.discoveredModels.length > 0) {
         const isSupported = check.discoveredModels.some(m => m.id === finalModel);
         if (!isSupported) {
           finalModel = providerManager.getActiveModel(provider);
