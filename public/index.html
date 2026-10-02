@@ -3,16 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>QueryMind — NL to SQL Engine</title>
+  <title>QueryMind — Natural Language Analytics Engine (DuckDB-WASM + Claude BYOK)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="/public/css/style.css">
 </head>
 <body>
   <div class="app">
     <!-- LEFT SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebarEl">
       <div class="logo">
         <div class="logo-mark">
           <div class="logo-icon">
@@ -22,222 +22,74 @@
           </div>
           <div>
             <div class="logo-name">QueryMind</div>
-            <div class="logo-tag">NL → SQL engine</div>
+            <div class="logo-tag">NL → SQL · DuckDB-WASM</div>
           </div>
         </div>
       </div>
 
-      <!-- SCHEMA EXPLORER -->
-      <div class="sb-section">
-        <div class="sb-label">Schema · SaaS Demo DB</div>
-        
-        <!-- Table: customers -->
-        <div class="schema-item">
-          <div class="schema-table">
-            <span class="t-icon">T</span> customers
-          </div>
-          <div class="schema-cols">
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key">PK</span><span>id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>name</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>email</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>plan</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>mrr</span></span>
-              <span class="col-type">decimal</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>status</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>created_at</span></span>
-              <span class="col-type">timestamp</span>
-            </div>
-          </div>
-        </div>
+      <!-- PRIVACY INDICATOR SLOT -->
+      <div id="privacyIndicatorSlot"></div>
 
-        <!-- Table: orders -->
-        <div class="schema-item">
-          <div class="schema-table">
-            <span class="t-icon">T</span> orders
-          </div>
-          <div class="schema-cols">
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key">PK</span><span>id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key fk">FK</span><span>customer_id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>amount</span></span>
-              <span class="col-type">decimal</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>ordered_at</span></span>
-              <span class="col-type">timestamp</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>product</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-          </div>
-        </div>
+      <!-- DYNAMIC SCHEMA EXPLORER -->
+      <div id="sidebarSchema" class="sb-section"></div>
 
-        <!-- Table: subscriptions -->
-        <div class="schema-item">
-          <div class="schema-table">
-            <span class="t-icon">T</span> subscriptions
-          </div>
-          <div class="schema-cols">
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key">PK</span><span>id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key fk">FK</span><span>customer_id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>plan</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>started_at</span></span>
-              <span class="col-type">timestamp</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>cancelled_at</span></span>
-              <span class="col-type">timestamp</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>churned</span></span>
-              <span class="col-type">boolean</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Table: events -->
-        <div class="schema-item">
-          <div class="schema-table">
-            <span class="t-icon">T</span> events
-          </div>
-          <div class="schema-cols">
-            <div class="schema-col">
-              <span class="col-left"><span class="col-key fk">FK</span><span>customer_id</span></span>
-              <span class="col-type">uuid</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>event_type</span></span>
-              <span class="col-type">varchar</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>occurred_at</span></span>
-              <span class="col-type">timestamp</span>
-            </div>
-            <div class="schema-col">
-              <span class="col-left"><span>properties</span></span>
-              <span class="col-type">jsonb</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- RECENT QUERIES -->
-      <div class="sb-section" style="flex: 1;">
-        <div class="sb-label">Recent queries</div>
-        <div id="histList"></div>
-      </div>
+      <!-- RECENT QUERY HISTORY -->
+      <div id="sidebarHistory" class="sb-section" style="margin-top: auto;"></div>
     </aside>
 
-    <!-- RIGHT MAIN PANEL -->
+    <!-- MAIN WORKSPACE -->
     <main class="main">
-      <div class="topbar">
+      <header class="topbar">
         <div class="topbar-left">
-          <button class="mobile-toggle" onclick="toggleSidebar()" aria-label="Toggle schema sidebar">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M1 3h14v2H1V3zm0 4h14v2H1V7zm0 4h14v2H1v-2z"/>
-            </svg>
+          <button class="btn-icon mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
+            ☰
           </button>
           <div>
-            <div class="topbar-title">Ask your database anything</div>
-            <div class="topbar-sub">Claude/Gemini reads your schema and writes verified SQL — step by step</div>
+            <h1 class="topbar-title">Ask your dataset anything</h1>
+            <p class="topbar-subtitle">Claude plans SQL · DuckDB-WASM executes locally in your browser</p>
           </div>
         </div>
-        <div style="display: flex; gap: 8px; align-items: center;">
-          <span class="badge badge-blue" id="modelBadge">
-            <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>
-            Demo Mode
-          </span>
-          <span class="badge badge-green">
-            <svg width="7" height="7" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill="currentColor"/></svg>
-            SaaS Demo DB
-          </span>
+        <div class="topbar-right">
+          <!-- Key controls injected here by ApiKeyModal -->
         </div>
-      </div>
+      </header>
 
       <div class="content">
-        <!-- QUERY BOX -->
+        <!-- CSV UPLOADER SLOT -->
+        <div id="uploaderSlot"></div>
+
+        <!-- QUERY INPUT CARD -->
         <div class="query-box">
-          <div class="query-box-hdr">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6">
+          <div class="input-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6b7280" stroke-width="1.8">
               <circle cx="7" cy="7" r="5"/>
-              <path d="M12 12l2.5 2.5"/>
+              <path d="M11 11l3.5 3.5"/>
             </svg>
-            Natural language query — press ⌘↵ or Ctrl+Enter to run
-          </div>
-          <div class="query-input-wrap">
-            <textarea class="qi" id="qi" placeholder='Try: "Show me top 5 customers by revenue last quarter" or pick an example below' rows="2"></textarea>
-            <button class="run-btn" id="runBtn" onclick="runQuery()">
-              <svg viewBox="0 0 16 16" fill="currentColor">
-                <path d="M3 2l11 6-11 6V2z"/>
+            <textarea
+              id="qi"
+              rows="1"
+              placeholder="Upload a CSV dataset above to start querying..."
+              disabled
+              autocomplete="off"
+              spellcheck="false"
+            ></textarea>
+            <button id="runBtn" class="run-btn" disabled>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 2.5v11l9-5.5-9-5.5z"/>
               </svg>
-              Run query
+              Run analysis
             </button>
           </div>
-          <div class="chips">
-            <button class="chip" onclick="setQ(this)" data-q="Show me the top 5 customers by total revenue last quarter">Top 5 by revenue last quarter</button>
-            <button class="chip" onclick="setQ(this)" data-q="Which Enterprise customers have churned in the last 30 days?">Churned Enterprise customers</button>
-            <button class="chip" onclick="setQ(this)" data-q="What is the average MRR by plan tier?">Avg MRR by plan tier</button>
-            <button class="chip" onclick="setQ(this)" data-q="List customers with more than 3 orders still on a trial plan">Trial customers with 3+ orders</button>
-            <button class="chip" onclick="setQ(this)" data-q="Show monthly revenue growth for the past 6 months">Monthly revenue growth</button>
-          </div>
+          <div class="examples" id="exampleChips"></div>
         </div>
 
-        <!-- DYNAMIC OUTPUT AREA -->
-        <div id="area">
-          <div class="empty">
-            <svg viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.3">
-              <rect x="4" y="8" width="32" height="24" rx="3"/>
-              <path d="M4 14h32M10 20h8M10 26h12"/>
-            </svg>
-            <h3>Ready to query</h3>
-            <p>Type a question or pick an example. QueryMind reads your schema and generates verified SQL with a step-by-step reasoning trace.</p>
-          </div>
-        </div>
+        <!-- DYNAMIC RESULTS AREA (Trace, SQL, Table, Insight) -->
+        <div id="area" class="results-area"></div>
       </div>
     </main>
   </div>
 
-  <!-- Scripts -->
-  <script src="js/sql_highlighter.js"></script>
-  <script src="js/trace.js"></script>
-  <script src="js/results_table.js"></script>
-  <script src="js/insight.js"></script>
-  <script src="js/pipeline_client.js"></script>
-  <script src="js/app.js"></script>
+  <!-- SCRIPT ENTRY POINT -->
+  <script type="module" src="/src/main.js"></script>
 </body>
 </html>

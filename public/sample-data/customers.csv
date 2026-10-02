@@ -1,0 +1,56 @@
+customer_id,customer_name,plan,status,signup_date,cancelled_at,mrr,country
+c101,Acme Corp,enterprise,active,2023-01-15,,8200.00,US
+c102,TechFlow Inc,enterprise,active,2023-04-10,,5400.00,US
+c103,Nexus Systems,enterprise,active,2023-08-22,,3600.00,UK
+c104,Pinnacle AI,enterprise,churned,2022-11-19,2024-09-15,6100.00,US
+c105,BuildRight,enterprise,churned,2023-05-28,2024-08-30,4200.00,DE
+c106,Vortex Global,enterprise,active,2023-02-14,,7500.00,CA
+c107,Titan Analytics,enterprise,active,2023-09-01,,4800.00,US
+c108,Quantum Metric,enterprise,active,2023-03-11,,6900.00,UK
+c109,Apex Digital,enterprise,churned,2023-06-18,2024-07-22,5100.00,US
+c110,Skyline Dynamics,enterprise,active,2023-11-05,,5800.00,AU
+c201,DataSync Ltd,professional,active,2023-06-12,,2100.00,UK
+c202,CloudBase Solutions,professional,active,2023-07-20,,1800.00,DE
+c203,StreamCo Media,professional,churned,2023-04-22,2024-09-01,1800.00,US
+c204,DevHouse Agency,professional,churned,2023-08-15,2024-08-10,950.00,FR
+c205,HyperGrid Systems,professional,active,2023-10-05,,1950.00,US
+c206,PulseMetrics,professional,active,2023-11-18,,2400.00,CA
+c207,OmniCloud Tech,professional,active,2024-01-14,,2200.00,US
+c208,BrightWave,professional,churned,2023-12-01,2024-06-15,1600.00,UK
+c209,Crestline Software,professional,active,2024-02-10,,1750.00,DE
+c210,Zenith Labs,professional,active,2024-03-05,,2100.00,JP
+c211,Krypton Data,professional,churned,2023-09-20,2024-07-14,1900.00,US
+c212,InfiniScale,professional,active,2024-04-18,,2350.00,US
+c213,Optima Solutions,professional,active,2024-05-22,,1850.00,AU
+c214,BlueShift AI,professional,paused,2023-10-30,,1500.00,CA
+c215,Veloce Corp,professional,active,2024-06-01,,2050.00,FR
+c301,QuickStart App,starter,active,2024-01-10,,290.00,US
+c302,PixelCraft Studio,starter,active,2024-02-14,,290.00,CA
+c303,SoloDev Pro,starter,active,2024-03-01,,190.00,UK
+c304,TinyTool Apps,starter,paused,2024-01-25,,350.00,US
+c305,ForgeDesign,starter,active,2024-02-20,,290.00,DE
+c306,MicroMetrics,starter,active,2024-03-15,,190.00,US
+c307,AlphaWidgets,starter,churned,2024-01-05,2024-05-10,290.00,UK
+c308,BetaByte,starter,active,2024-04-02,,320.00,AU
+c309,CodeWeave,starter,active,2024-04-25,,290.00,US
+c310,DeltaNode,starter,churned,2024-02-18,2024-06-20,190.00,FR
+c311,EchoWorks,starter,active,2024-05-12,,350.00,DE
+c312,FluxDev,starter,active,2024-06-05,,290.00,US
+c313,GigaKit,starter,active,2024-06-28,,190.00,JP
+c314,HoverCraft,starter,paused,2024-03-22,,290.00,UK
+c315,Iconix,starter,active,2024-07-10,,320.00,CA
+c316,JunoApps,starter,active,2024-07-25,,290.00,US
+c317,KiteFly,starter,churned,2024-03-10,2024-08-01,190.00,US
+c318,LunaDesk,starter,active,2024-08-12,,350.00,DE
+c319,MobiStack,starter,active,2024-08-28,,290.00,FR
+c320,NovaPoint,starter,active,2024-09-02,,290.00,US
+c401,RapidBuild,trial,active,2024-08-15,,0.00,US
+c402,FlowStack,trial,active,2024-08-24,,0.00,UK
+c403,NodeCraft,trial,active,2024-09-02,,0.00,DE
+c404,Synapse AI,trial,active,2024-09-10,,0.00,CA
+c405,AlphaPilot,trial,active,2024-09-15,,0.00,US
+c406,BetaLogic,trial,active,2024-09-18,,0.00,AU
+c407,ClearPath,trial,active,2024-09-22,,0.00,US
+c408,DirectScale,trial,active,2024-09-25,,0.00,FR
+c409,EdgeCore,trial,active,2024-09-28,,0.00,DE
+c410,FrontierData,trial,active,2024-10-01,,0.00,US

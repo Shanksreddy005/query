@@ -1,194 +1,163 @@
-# QueryMind — NL → SQL Engine
+# QueryMind — Privacy-First Natural Language Analytics Engine
 
-> An enterprise-grade Natural Language to PostgreSQL query engine featuring an interactive 6-step reasoning trace, deterministic in-memory query execution, SQL safety verification, and AI-narrated executive business insights.
+> **"Ask your CSV questions in plain English."**  
+> A 100% client-side, browser-native analytics agent powered by **DuckDB-WASM** and **BYOK Anthropic Claude**.
 
-[![Test Suite](https://img.shields.io/badge/tests-30%20passed-34c97b.svg)](file:///tests/)
+[![Test Suite](https://img.shields.io/badge/tests-26%20passed-34c97b.svg)](file:///tests/)
+[![Engine: DuckDB-WASM](https://img.shields.io/badge/Engine-DuckDB--WASM-FFF000.svg)](https://duckdb.org/docs/api/wasm/overview)
+[![AI: Claude BYOK](https://img.shields.io/badge/AI-Claude%20(Anthropic)-D97706.svg)](https://docs.anthropic.com/en/docs/initial-setup)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![PostgreSQL](https://img.shields.io/badge/Dialect-PostgreSQL-336791.svg)](file:///src/schema/saas_db.js)
-[![Vercel Ready](https://img.shields.io/badge/Deployment-Vercel-black.svg)](vercel.json)
+[![Static Deployment](https://img.shields.io/badge/Architecture-100%25%20Client--Side-4f8ef7.svg)](#architecture)
 
 ---
 
-## 1. Problem Statement
-Business analysts and data analysts spend **60–70% of their query time** writing and debugging SQL that could be stated in one sentence. Non-technical stakeholders struggle to extract insights directly, while black-box LLM SQL generators often produce unverified queries, introduce security vulnerabilities, hallucinate non-existent columns, or leave users uncertain about whether the query accurately answers their business question.
+## 1. Overview & Core Philosophy
+
+QueryMind bridges the gap between raw data files and executive business answers without compromising data privacy. 
+
+Traditional AI-powered analytics tools force you to upload sensitive spreadsheets and enterprise databases to cloud servers. **QueryMind operates completely inside your browser:**
+
+> ### 🔒 Data Privacy Guarantee:
+> **The full uploaded dataset remains local. Only explicitly permitted AI context — user question, schema metadata, limited sample rows, SQL/tool interactions, and capped query results — may be sent to Anthropic.**
+
+- **DuckDB-WASM** runs inside a Web Worker on your computer, parsing your CSV into an in-memory database and computing SQL aggregations locally.
+- **Claude (Anthropic API)** acts as an expert query planner and data analyst, generating verified SQL queries and summarizing results.
+- **Zero Application Backend:** There is no server, database, or serverless compute processing your files. The app is 100% static.
 
 ---
 
-## 2. The Solution
-QueryMind bridges the gap between natural language questions and database analytics with complete transparency:
-1. **Interactive 6-Step Process Trace**: Animates character-by-character through intent extraction, schema mapping, join planning, SQL generation, safety verification, and result narration.
-2. **Clause-Commented PostgreSQL**: Produces clean, readable SQL queries with syntax highlighting and instant clipboard copying.
-3. **Deterministic Query Results**: Real-time tabular visualization with highlighted financial/metric columns (`.nc`).
-4. **AI-Narrated Business Insights**: Two-sentence executive takeaways delivered with an engaging typewriter animation and blinking cursor.
-
----
-
-## 3. The Six-Step LLM Reasoning Pipeline
+## 2. Architecture & Data Flow
 
 ```
-Natural Language Question
-         │
-         ▼
-[Step 1: Intent Parser]       ──► Extracts entity, metric, filters, time window, limit
-         │
-         ▼
-[Step 2: Schema Mapper]       ──► Maps attributes to SaaS Demo DB tables & foreign keys
-         │
-         ▼
-[Step 3: Join Planner]        ──► Plain-English operational plan for the analyst
-         │
-         ▼
-[Step 4: SQL Generator]       ──► PostgreSQL with inline clause comments (SELECT-only)
-         │
-         ▼
-[Security & Guard Validator]  ──► Enforces read-only safety; rejects DROP/INSERT/UPDATE
-         │
-         ▼
-[Step 5: Query Verifier]      ──► Validates column existence, joins, and div/0 guards
-         │
-         ▼
-[Database Execution Engine]   ──► Executes against in-memory SaaS Demo DB
-         │
-         ▼
-[Step 6: Insight Narrator]    ──► Synthesizes 2-sentence executive business takeaway
+                      ┌───────────────────────────────────┐
+                      │         QueryMind Browser UI       │
+                      │    (HTML + CSS + Vanilla JS)      │
+                      └─────────────────┬─────────────────┘
+                                        │
+              ┌─────────────────────────┴─────────────────────────┐
+              │                                                   │
+              ▼                                                   ▼
+   ┌───────────────────────┐                           ┌─────────────────────┐
+   │     DuckDB-WASM       │                           │  Claude API (BYOK)  │
+   │  Browser Web Worker   │                           │ Anthropic /messages │
+   │ (Virtual Filesystem)  │                           │ direct CORS request │
+   └──────────┬────────────┘                           └──────────┬──────────┘
+              │                                                   │
+              │ Local SQL Execution                               │ Tool Call:
+              │ (Full dataset stays local)                        │ run_sql({query})
+              │                                                   │
+              └─────────────────────────┬─────────────────────────┘
+                                        │
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │    Agent Controller Loop    │
+                         │  - MAX_AGENT_ROUNDS = 5     │
+                         │  - Strict SELECT SQL Guard  │
+                         │  - Auto Error Correction    │
+                         │  - MAX_CLAUDE_ROWS = 25     │
+                         │  - MAX_DISPLAY_ROWS = 100   │
+                         │  - Business Insight         │
+                         └─────────────────────────────┘
 ```
 
----
-
-## 4. SaaS Demo DB Schema
-
-Every LLM prompt strictly receives this relational context:
-
-| Table | Columns | Keys / Constraints | Description |
-| :--- | :--- | :--- | :--- |
-| **`customers`** | `id`, `name`, `email`, `plan`, `mrr`, `status`, `created_at` | `id` PK; `plan` IN ('starter', 'professional', 'enterprise', 'trial'); `status` IN ('active', 'churned', 'paused') | Customer accounts and subscription tiers |
-| **`orders`** | `id`, `customer_id`, `amount`, `ordered_at`, `product` | `id` PK; `customer_id` FK → `customers.id` | Product purchases and transactions |
-| **`subscriptions`** | `id`, `customer_id`, `plan`, `started_at`, `cancelled_at`, `churned` | `id` PK; `customer_id` FK → `customers.id`; `churned` boolean | Subscription lifecycle and churn timestamps |
-| **`events`** | `customer_id`, `event_type`, `occurred_at`, `properties` | `customer_id` FK → `customers.id`; `properties` jsonb | Product usage and feature interaction logs |
+### The Separation of Responsibilities:
+- **Claude:** Understands the question, inspects the schema, generates SQL, requests tool execution, and interprets capped results.
+- **DuckDB-WASM:** Owns the dataset, executes SQL locally in WebAssembly, and returns formatted rows.
+- **Browser JavaScript:** Controls permissions, validates SQL safety, enforces row limits, and coordinates the UI.
 
 ---
 
-## 5. Five Predefined Acceptance Queries
+## 3. Key Features
 
-QueryMind includes 5 pre-loaded golden queries accessible via interactive chips:
-
-1. **Top 5 by revenue last quarter**:
-   ```sql
-   SELECT RANK() OVER (ORDER BY SUM(o.amount) DESC) AS rank,
-          c.name, c.plan, SUM(o.amount) AS total_revenue,
-          COUNT(o.id) AS order_count, c.mrr
-   FROM   orders o JOIN customers c ON c.id = o.customer_id
-   WHERE  o.ordered_at BETWEEN '2024-07-01' AND '2024-09-30'
-   GROUP BY c.id, c.name, c.plan, c.mrr
-   ORDER BY total_revenue DESC LIMIT 5;
-   ```
-2. **Churned Enterprise customers**:
-   Filters `s.churned = true AND c.plan = 'enterprise' AND s.cancelled_at >= NOW() - INTERVAL '30 days'` and computes tenure via `DATE_PART('month', AGE(s.cancelled_at, c.created_at))`.
-3. **Avg MRR by plan tier**:
-   Calculates customer counts, average MRR, total MRR, and revenue share percentage using `SUM(SUM(c.mrr)) OVER ()`.
-4. **Trial customers with 3+ orders**:
-   Joins customers to orders, filters `c.plan = 'trial'`, and uses `HAVING COUNT(o.id) > 3` to identify high-intent conversion prospects.
-5. **Monthly revenue growth**:
-   Uses CTEs for new revenue and churned MRR, performs a `LEFT JOIN`, and computes month-over-month growth with `LAG(m.new_rev) OVER (ORDER BY m.mo)` guarded by `NULLIF`.
+- **Bring Your Own Key (BYOK):** Direct connection to Anthropic Claude via client-side CORS headers (`anthropic-dangerous-direct-browser-access: true`).
+- **Memory-Only Key Storage:** API keys reside exclusively in JavaScript runtime closure. Zero storage in `localStorage`, `IndexedDB`, or cookies.
+- **Dynamic CSV Ingestion:** Drag-and-drop any `.csv` file. DuckDB infers column types (`INTEGER`, `DOUBLE`, `VARCHAR`, `DATE`, `TIMESTAMP`) automatically.
+- **Client-Side Tool Calling:** Claude requests the `run_sql` tool, which browser JavaScript validates with a SELECT-only SQL Guard and executes in DuckDB.
+- **Automatic Error Correction Loop:** If DuckDB throws a syntax or column error, the error context is sent back to Claude to self-correct within `MAX_AGENT_ROUNDS = 5`.
+- **Capped Result Limits:** Protects token usage and browser performance with `MAX_CLAUDE_ROWS = 25` and `MAX_DISPLAY_ROWS = 100`.
+- **6-Stage Process Trace:** Real-time typewriter trace (`waiting` → `running` → `done`).
+- **AI Business Takeaways:** Executive 2-sentence summary grounded strictly in the returned query records.
+- **Built-in Demo Mode:** Bundled sample dataset (`sample-data/customers.csv`) for instant testing without an immediate CSV upload.
 
 ---
 
-## 6. Technology Stack
-
-- **Frontend**: Vanilla JavaScript (ES2024), HTML5, CSS3 with custom design tokens. Zero external UI bundle bloat.
-- **Typography**: Inter (UI) & JetBrains Mono (Code/SQL).
-- **Backend / API Boundary**: Node.js HTTP server + Vercel Serverless Functions (`/api/pipeline`, `/api/health`).
-- **Database Engine**: In-memory relational database (`sql.js` WebAssembly SQLite) with PostgreSQL function helpers (`now`, `age`, `date_trunc`, `date_part`, `to_char`, `concat`).
-- **Primary LLM**: Google Gemini 2.0 Flash (`GEMINI_API_KEY`) via Google AI Studio.
-- **Secondary / Fast LLM**: Groq Cloud Llama 3.3 70B (`GROQ_API_KEY`) for fast verification and insight narration.
-- **Testing**: Native Node.js test runner (`node --test`).
-
----
-
-## 7. Security Architecture
-
-- **Air-Gapped Secrets**: API keys (`GEMINI_API_KEY`, `GROQ_API_KEY`) are accessed strictly on the server/serverless layer. The browser client never sees or imports API keys.
-- **Strict SELECT-Only Enforcement**: QueryMind's SQL Guard rejects `INSERT`, `UPDATE`, `DELETE`, `DROP`, `ALTER`, `TRUNCATE`, `CREATE`, `GRANT`, `REVOKE`, `EXEC`, and semicolon-chained multi-statements.
-- **Input Sanitization**: User questions and LLM outputs are escaped before DOM insertion to prevent XSS.
-- **Git Protection**: `.env` is strictly ignored by `.gitignore` and audited by test suites.
-
----
-
-## 8. Local Setup & Quickstart
+## 4. Getting Started
 
 ### Prerequisites
-- Node.js (v18.0.0 or higher, tested on Node v24.15.0)
-- npm (v9.0.0 or higher)
+- Node.js (v18 or later)
+- An Anthropic Claude API key ([Get an API key](https://console.anthropic.com/))
 
-### 1. Clone & Install
+### Installation
 ```bash
-git clone https://github.com/your-username/querymind-prototype.git
-cd querymind-prototype
+# Clone the repository
+git clone https://github.com/your-username/QueryMind.git
+cd QueryMind
+
+# Install dependencies
 npm install
 ```
 
-### 2. Configure Environment (Optional for Live API Keys)
-Copy `.env.example` to `.env`:
+### Development Server
 ```bash
-cp .env.example .env
-```
-Populate your API keys (the app runs seamlessly in demo benchmark mode if keys are omitted):
-```env
-GEMINI_API_KEY=your_gemini_api_key_here
-GROQ_API_KEY=your_groq_api_key_here
-PORT=3000
+npm run dev
+# Opens at http://localhost:3000 with hot module reloading
 ```
 
-### 3. Run the Local Server
+### Production Build (Static Site)
 ```bash
-npm start
+npm run build
+# Outputs static files to dist/
 ```
-Open your browser to:
-```
-http://localhost:3000
+
+You can preview the production build locally:
+```bash
+npm run preview
+# Serves dist/ statically with COOP/COEP headers
 ```
 
 ---
 
-## 9. Running the Automated Test Suite
+## 5. BYOK Security & Billing Warning
 
-QueryMind includes 30 automated tests across 5 comprehensive test suites:
+> [!WARNING]
+> **API Key Ownership & Billing**
+> When you enter your Anthropic API key into QueryMind:
+> 1. Requests are made directly from your browser to `https://api.anthropic.com/v1/messages`.
+> 2. You are directly responsible for your own Anthropic API usage and billing costs.
+> 3. Your key is stored **only in memory** for the active browser session. Refreshing or closing the tab wipes it immediately.
+> 4. Never enter an API key on an untrusted or shared device.
+
+Supported Models:
+- `claude-sonnet-5-5` (Default · High Capability)
+- `claude-haiku-4-5` (Fast · Lower Cost)
+
+---
+
+## 6. Testing
+
+QueryMind includes a comprehensive test suite covering DuckDB execution, CSV loading, dynamic schema extraction, SQL guard enforcement, memory-only key audits, and analytical queries.
 
 ```bash
 npm test
 ```
 
-### Test Coverage Summary:
-- `tests/sql_guard.test.js`: Verifies SELECT-only constraints, rejects destructive commands and injection attempts.
-- `tests/presets.test.js`: Verifies all 5 DOCX golden queries against expected SQL, schema, and row counts.
-- `tests/pipeline.test.js`: Tests prompt construction and JSON parsing for all 6 pipeline stages.
-- `tests/db_execution.test.js`: Validates in-memory execution, aggregations, joins, and error reporting.
-- `tests/api_security.test.js`: Verifies zero secret leakage, safe healthcheck masking, and client bundle integrity.
+Test Suites:
+1. `tests/duckdb_engine.test.js` — DuckDB table creation, CSV parsing, and query execution.
+2. `tests/sql_guard.test.js` — SELECT-only enforcement, mutation rejection, and injection guards.
+3. `tests/byok_security.test.js` — Zero-persistence audit, closure memory verification, and row capping.
+4. `tests/agent_loop.test.js` — Tool-use lifecycle, error-correction loop, and max 5 rounds termination.
+5. `tests/analytical_queries.test.js` — 5 representative analytical questions executed on `sample-data/customers.csv`.
 
 ---
 
-## 10. Deployment Guide (Vercel & GitHub)
+## 7. Limitations
 
-### One-Click Deploy to Vercel
-1. Push your repository to GitHub:
-   ```bash
-   git add .
-   git commit -m "feat: QueryMind NL to SQL Engine initial release"
-   git remote add origin https://github.com/your-username/querymind-prototype.git
-   git branch -M main
-   git push -u origin main
-   ```
-2. In the Vercel Dashboard, select **Add New Project** and import the repository.
-3. In **Project Settings → Environment Variables**, add:
-   - `GEMINI_API_KEY`: Your Google AI Studio API key
-   - `GROQ_API_KEY`: Your Groq Cloud API key
-4. Deploy. Vercel auto-deploys `public/` assets and `/api` serverless functions.
+- **File Formats:** Currently accepts `.csv` files. Support for `.parquet` and `.json` is on the roadmap.
+- **Dataset Size:** Datasets up to 100MB / ~500,000 rows run comfortably within browser WebAssembly memory limits.
+- **Browser Compatibility:** Requires a modern browser supporting WebAssembly and Web Workers (Chrome, Firefox, Safari, Edge).
 
 ---
 
-## 11. Limitations & Future Roadmap
+## 8. License
 
-- **Current Prototype Scope**: Focuses on the SaaS Demo DB (customers, orders, subscriptions, events).
-- **Future Database Connectors**: Direct integration with external PostgreSQL / Supabase databases via Supabase MCP connection.
-- **Visual Charting**: Automatic generation of bar and line charts from query result sets.
-- **Export Options**: One-click export to CSV, JSON, and Google Sheets.
+MIT License. See [LICENSE](LICENSE) for details.

@@ -23,3 +23,7 @@ Thumbs.db
 # Temp extraction files
 extracted_docx_text.txt
 docx_full_content.md
+
+# Build output
+dist/
+

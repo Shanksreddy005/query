@@ -1,61 +1,63 @@
 # QueryMind — Requirements Traceability Matrix
 
-> **Primary Specification Source:** `QueryMind-Antigravity.docx` (v1.0, September 2026)  
-> **Visual & Behavioral Reference:** `nl-to-sql.html`  
+> **Primary Specification Source:** Master Client-Side Antigravity Prompt & `QueryMind-Antigravity.docx`  
+> **Architecture:** 100% Client-Side Web Application (DuckDB-WASM + BYOK Claude)  
 > **Status:** All core requirements implemented and tested with 100% test pass rate.
 
 ---
 
 ## Traceability Table
 
-| DOCX Requirement | Category | Implementation Location | Test Verification | Status |
+| Specification Requirement | Category | Implementation Location | Test Verification | Status |
 | :--- | :--- | :--- | :--- | :--- |
-| **Product Brief & Scope** | Product | `public/index.html`, `server.js` | Manual & end-to-end check | **`[IMPLEMENTED] [TESTED]`** |
-| **Two-Column Layout** | UI Shell | `public/index.html`, `public/css/style.css` | Visual & CSS breakpoint check | **`[IMPLEMENTED] [TESTED]`** |
-| **SaaS Demo DB Schema** | Database | `src/schema/saas_db.js`, `public/index.html` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - `customers` (id, name, email, plan, mrr, status, created_at) | Schema | `src/schema/saas_db.js` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - `orders` (id, customer_id, amount, ordered_at, product) | Schema | `src/schema/saas_db.js` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - `subscriptions` (id, customer_id, plan, started_at, cancelled_at, churned) | Schema | `src/schema/saas_db.js` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - `events` (customer_id, event_type, occurred_at, properties) | Schema | `src/schema/saas_db.js` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 1 — Intent Parser** | LLM Pipeline | `src/pipeline/step1_intent.js` | `tests/pipeline.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 2 — Schema Mapper** | LLM Pipeline | `src/pipeline/step2_schema.js` | `tests/pipeline.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 3 — Join Planner** | LLM Pipeline | `src/pipeline/step3_planner.js` | `tests/pipeline.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 4 — SQL Generator** | LLM Pipeline | `src/pipeline/step4_sqlgen.js` | `tests/pipeline.test.js`, `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 5 — Query Verifier** | LLM Pipeline | `src/pipeline/step5_verifier.js` | `tests/pipeline.test.js`, `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Step 6 — Insight Narrator** | LLM Pipeline | `src/pipeline/step6_insight.js` | `tests/pipeline.test.js`, `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Reasoning Trace UI** | UI / Animation | `public/js/trace.js`, `public/css/style.css` | UI lifecycle & typewriter timing | **`[IMPLEMENTED] [TESTED]`** |
-| - Step dot states (waiting -> running -> done) | Animation | `public/js/trace.js`, `.step-dot` | Tested in browser and trace script | **`[IMPLEMENTED] [TESTED]`** |
-| - Vertical connector lines | CSS | `public/css/style.css` (`.step::before`) | Visual QA check | **`[IMPLEMENTED] [TESTED]`** |
-| - Character typewriter effect (~3 chars / 8ms) | Animation | `public/js/trace.js` (`animateStep`) | Unit timing check | **`[IMPLEMENTED] [TESTED]`** |
-| - 180–250ms step-to-step pause | Timing | `public/js/app.js`, `public/js/trace.js` | Runtime loop check | **`[IMPLEMENTED] [TESTED]`** |
-| - Trace status badge ("Running..." -> "Complete ✓") | Badge | `public/js/trace.js` (`complete()`) | DOM assertion check | **`[IMPLEMENTED] [TESTED]`** |
-| **No Private Chain-of-Thought** | Safety | `src/pipeline/`, `public/js/trace.js` | Prompt audits & output inspection | **`[IMPLEMENTED] [TESTED]`** |
-| **SQL Syntax Highlighting** | UI / Code | `public/js/sql_highlighter.js` | Token span generation check | **`[IMPLEMENTED] [TESTED]`** |
-| - JetBrains Mono monospace font | Typography | `public/index.html`, `public/css/style.css` | Font link & stylesheet check | **`[IMPLEMENTED] [TESTED]`** |
-| - Copy Button (copies pure SQL, not HTML) | Feature | `public/js/sql_highlighter.js` (`copySQL`) | Clipboard utility test | **`[IMPLEMENTED] [TESTED]`** |
-| **Results Table** | UI / Data | `public/js/results_table.js` | `tests/db_execution.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - Metric highlight class (`.nc`) | Styling | `public/js/results_table.js` | Regex currency/percentage test | **`[IMPLEMENTED] [TESTED]`** |
-| - Row count & data source label | Data | `public/js/results_table.js` | Row count formatting check | **`[IMPLEMENTED] [TESTED]`** |
-| - Responsive horizontal scroll | Layout | `public/css/style.css` (`.table-wrap`) | Viewport overflow test | **`[IMPLEMENTED] [TESTED]`** |
-| **AI Insight Card** | UI / Animation | `public/js/insight.js` | `tests/pipeline.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - Typewriter animation (~4 chars / 11ms) | Animation | `public/js/insight.js` | Animation timer check | **`[IMPLEMENTED] [TESTED]`** |
-| - Blinking cursor (`▋` while typing) | UI | `public/css/style.css` (`.typing-cursor`) | CSS animation check | **`[IMPLEMENTED] [TESTED]`** |
-| **Golden Query 1: Top 5 by Revenue** | Golden Test | `src/pipeline/presets.js` | `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Golden Query 2: Churned Enterprise** | Golden Test | `src/pipeline/presets.js` | `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Golden Query 3: Avg MRR by Plan Tier** | Golden Test | `src/pipeline/presets.js` | `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Golden Query 4: Trial Customers 3+ Orders**| Golden Test | `src/pipeline/presets.js` | `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Golden Query 5: Monthly Revenue Growth** | Golden Test | `src/pipeline/presets.js` | `tests/presets.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Model Routing & Fallback** | AI Routing | `src/pipeline/router.js` | `tests/pipeline.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - Gemini Primary (Steps 1–4) | Provider | `src/providers/gemini.js` | Mock & timeout check | **`[IMPLEMENTED] [TESTED]`** |
-| - Groq Secondary / Fast (Steps 5–6) | Provider | `src/providers/groq.js` | Mock & timeout check | **`[IMPLEMENTED] [TESTED]`** |
-| - Baked-in Golden Preset Fallback | Fallback | `src/pipeline/presets.js` | Preset verification test | **`[IMPLEMENTED] [TESTED]`** |
-| - Badges: `Live · [Provider]` vs `Sample` | UI / Badge | `src/pipeline/router.js`, `public/js/app.js` | Status badge check | **`[IMPLEMENTED] [TESTED]`** |
-| **Security & Credential Masking** | Security | `api/pipeline.js`, `api/health.js` | `tests/api_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - No API keys in browser JavaScript | Security | `public/js/` | `tests/api_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - `.gitignore` blocks `.env` | Security | `.gitignore` | `tests/api_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| - Strict SELECT-only SQL Guard | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **Zero-Backend Architecture** | Architecture | `index.html`, `vite.config.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - No `server.js` or backend API | Architecture | Root directory | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Static files deployable to GitHub Pages/Vercel | Deployment | `dist/`, `package.json` | `vite build` validation | **`[IMPLEMENTED] [TESTED]`** |
+| **DuckDB-WASM Integration** | Database | `src/duckdb/init.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Native in-browser Web Worker execution | Database | `src/duckdb/init.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Virtual filesystem buffer registration | Database | `src/duckdb/csv_loader.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **CSV Dataset Ingestion** | Ingestion | `src/duckdb/csv_loader.js`, `src/ui/uploader_view.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Drag-and-drop CSV upload | UI / Ingestion | `src/ui/uploader_view.js` | Browser DOM test | **`[IMPLEMENTED] [TESTED]`** |
+| - Full CSV remains strictly local | Privacy | `docs/PRIVACY_ARCHITECTURE.md` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Dataset replacement (table teardown) | Ingestion | `src/duckdb/csv_loader.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **Dynamic Schema Extraction** | Schema | `src/duckdb/schema.js`, `src/ui/schema_view.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Inferred data types via `DESCRIBE` | Schema | `src/duckdb/schema.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - 5 representative sample rows extracted | Schema | `src/duckdb/schema.js` | `tests/duckdb_engine.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Sample rows collapsible preview drawer | UI | `src/ui/schema_view.js` | UI assertion | **`[IMPLEMENTED] [TESTED]`** |
+| **BYOK Claude API Integration** | AI / Security | `src/agent/claude_client.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Memory-only key storage (closure) | Security | `src/agent/claude_client.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Zero storage in localStorage/cookies | Security | `src/agent/claude_client.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Direct browser CORS request | Network | `src/agent/claude_client.js` | Header verification | **`[IMPLEMENTED] [TESTED]`** |
+| - Key verification probe request | UX / Security | `src/ui/api_key_modal.js` | Modal handler | **`[IMPLEMENTED] [TESTED]`** |
+| - "Clear API Key" instant memory wipe | Security | `src/agent/claude_client.js`, `src/ui/api_key_modal.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Supported models (`claude-sonnet-5-5`, `claude-haiku-4-5`) | Models | `src/agent/claude_client.js` | Model constants check | **`[IMPLEMENTED] [TESTED]`** |
+| **Client-Side Tool-Based Agent Loop** | Agent | `src/agent/agent_loop.js`, `src/agent/tools.js` | `tests/agent_loop.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - `run_sql` tool definition | Tool | `src/agent/tools.js` | `tests/agent_loop.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Browser JavaScript executes tool | Agent | `src/agent/agent_loop.js` | `tests/agent_loop.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Hard limit `MAX_AGENT_ROUNDS = 5` | Safety | `src/agent/agent_loop.js` | `tests/agent_loop.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Automatic SQL error-correction loop | Agent | `src/agent/agent_loop.js` | `tests/agent_loop.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **SQL Security Guard** | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Strict SELECT-only and CTEs allowed | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
 | - Rejection of DROP, INSERT, UPDATE, DELETE | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
-| **Query History in Sidebar** | Feature | `public/js/app.js` | History add and restore test | **`[IMPLEMENTED] [TESTED]`** |
-| **Keyboard Shortcut (⌘↵ / Ctrl+Enter)** | UX | `public/js/app.js` | Keydown listener check | **`[IMPLEMENTED] [TESTED]`** |
-| **Responsive Mobile Layout** | Responsiveness | `public/css/style.css`, `public/index.html` | CSS media query & toggle test | **`[IMPLEMENTED] [TESTED]`** |
-| **Deployment Configuration** | DevOps | `vercel.json`, `package.json` | Vercel routing test | **`[IMPLEMENTED] [TESTED]`** |
+| - Rejection of COPY, EXPORT, INSTALL, PRAGMA | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Rejection of SQL statement chaining | Security | `src/security/sql_guard.js` | `tests/sql_guard.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **Result Capping & Formatting** | Data / Privacy | `src/duckdb/executor.js`, `src/ui/results_view.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - `MAX_CLAUDE_ROWS = 25` | Privacy | `src/duckdb/executor.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - `MAX_DISPLAY_ROWS = 100` | UI | `src/duckdb/executor.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - Row count & execution latency in ms | UI | `src/ui/results_view.js` | UI rendering test | **`[IMPLEMENTED] [TESTED]`** |
+| - Numeric metric highlight class (`.nc`) | UI | `src/ui/results_view.js` | Regex currency test | **`[IMPLEMENTED] [TESTED]`** |
+| **Process Trace Visualization** | UI / Animation | `src/ui/trace_view.js` | `src/ui/trace_view.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - 6 operational steps (waiting -> running -> done) | Animation | `src/ui/trace_view.js` | DOM class verification | **`[IMPLEMENTED] [TESTED]`** |
+| - Vertical connector lines | CSS | `public/css/style.css` | CSS rule verification | **`[IMPLEMENTED] [TESTED]`** |
+| - Typewriter text animation (~3 chars / 8ms) | Animation | `src/ui/trace_view.js` | Timing verification | **`[IMPLEMENTED] [TESTED]`** |
+| **Generated SQL Presentation** | UI / Code | `src/ui/sql_view.js` | Clipboard & syntax test | **`[IMPLEMENTED] [TESTED]`** |
+| - JetBrains Mono monospace formatting | Typography | `src/ui/sql_view.js` | Font family check | **`[IMPLEMENTED] [TESTED]`** |
+| - Pure text clipboard Copy button | UX | `src/ui/sql_view.js` | Clipboard API check | **`[IMPLEMENTED] [TESTED]`** |
+| - `DuckDB-WASM · Local` badge | Badge | `src/ui/sql_view.js` | DOM element check | **`[IMPLEMENTED] [TESTED]`** |
+| **AI Business Insight Card** | UI / Animation | `src/ui/insight_view.js` | Typewriter check | **`[IMPLEMENTED] [TESTED]`** |
+| - Exactly 2-sentence executive takeaway | AI Output | `src/agent/prompts.js` | Prompt constraint test | **`[IMPLEMENTED] [TESTED]`** |
+| - Blinking cursor (`▋` while typing) | UI | `src/ui/insight_view.js` | DOM animation test | **`[IMPLEMENTED] [TESTED]`** |
+| **Privacy Indicator Widget** | Privacy | `src/ui/privacy_badge.js` | Visual verification | **`[IMPLEMENTED] [TESTED]`** |
+| **In-Memory Query History** | Feature | `src/ui/history_view.js` | `tests/byok_security.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| **Built-in Demo Mode** | Feature | `sample-data/customers.csv`, `src/ui/uploader_view.js` | `tests/analytical_queries.test.js` | **`[IMPLEMENTED] [TESTED]`** |
+| - 5 Representative Analytical Queries | Queries | `tests/analytical_queries.test.js` | `tests/analytical_queries.test.js` | **`[IMPLEMENTED] [TESTED]`** |

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>QueryMind — Natural Language Analytics Engine (DuckDB-WASM + Claude BYOK)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/public/css/style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar" id="sidebarEl">
+      <div class="logo">
+        <div class="logo-mark">
+          <div class="logo-icon">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M2 4h12M2 8h8M2 12h5"/>
+            </svg>
+          </div>
+          <div>
+            <div class="logo-name">QueryMind</div>
+            <div class="logo-tag">NL → SQL · DuckDB-WASM</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PRIVACY INDICATOR SLOT -->
+      <div id="privacyIndicatorSlot"></div>
+
+      <!-- DYNAMIC SCHEMA EXPLORER -->
+      <div id="sidebarSchema" class="sb-section"></div>
+
+      <!-- RECENT QUERY HISTORY -->
+      <div id="sidebarHistory" class="sb-section" style="margin-top: auto;"></div>
+    </aside>
+
+    <!-- MAIN WORKSPACE -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn-icon mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
+            ☰
+          </button>
+          <div>
+            <h1 class="topbar-title">Ask your dataset anything</h1>
+            <p class="topbar-subtitle">Claude plans SQL · DuckDB-WASM executes locally in your browser</p>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <!-- Key controls injected here by ApiKeyModal -->
+        </div>
+      </header>
+
+      <div class="content">
+        <!-- CSV UPLOADER SLOT -->
+        <div id="uploaderSlot"></div>
+
+        <!-- QUERY INPUT CARD -->
+        <div class="query-box">
+          <div class="input-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6b7280" stroke-width="1.8">
+              <circle cx="7" cy="7" r="5"/>
+              <path d="M11 11l3.5 3.5"/>
+            </svg>
+            <textarea
+              id="qi"
+              rows="1"
+              placeholder="Upload a CSV dataset above to start querying..."
+              disabled
+              autocomplete="off"
+              spellcheck="false"
+            ></textarea>
+            <button id="runBtn" class="run-btn" disabled>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4 2.5v11l9-5.5-9-5.5z"/>
+              </svg>
+              Run analysis
+            </button>
+          </div>
+          <div class="examples" id="exampleChips"></div>
+        </div>
+
+        <!-- DYNAMIC RESULTS AREA (Trace, SQL, Table, Insight) -->
+        <div id="area" class="results-area"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- SCRIPT ENTRY POINT -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

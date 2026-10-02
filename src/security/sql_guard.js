@@ -1,6 +1,6 @@
 /**
  * SQL Security Guard & SELECT-Only Validator
- * Enforces strict read-only execution and prevents destructive operations or injection attacks.
+ * Enforces strict read-only execution in DuckDB-WASM and prevents destructive operations or injection attacks.
  */
 
 const FORBIDDEN_COMMANDS = [
@@ -25,10 +25,13 @@ const FORBIDDEN_COMMANDS = [
   'VACUUM',
   'REINDEX',
   'INTO OUTFILE',
-  'LOAD_FILE'
+  'LOAD_FILE',
+  'COPY',
+  'EXPORT',
+  'INSTALL',
+  'LOAD',
+  'CHECKPOINT'
 ];
-
-const ALLOWED_TABLES = ['customers', 'orders', 'subscriptions', 'events'];
 
 /**
  * Strips comments and string literals to perform keyword inspection safely
@@ -40,22 +43,23 @@ function stripCommentsAndLiterals(sql) {
   clean = clean.replace(/--.*$/gm, ' ');
   // Remove string literals '...'
   clean = clean.replace(/'(?:''|[^'])*'/g, "''");
-  // Remove double-quoted identifiers if needed, but keep names
   return clean;
 }
 
 /**
  * Validates that SQL is strictly SELECT or WITH ... SELECT, and contains no forbidden operations.
- * Returns { valid: boolean, error?: string, sanitizedSql: string }
+ * @param {string} rawSql
+ * @param {string[]} [allowedTables] - Optional list of permitted tables in the current session
+ * @returns {{ valid: boolean, error?: string, sanitizedSql: string }}
  */
-function validateSql(rawSql) {
+function validateSql(rawSql, allowedTables = null) {
   if (!rawSql || typeof rawSql !== 'string') {
     return { valid: false, error: 'SQL query is empty or invalid.' };
   }
 
-  // Strip code fences if model enclosed in ```sql
+  // Strip markdown code fences if model enclosed in ```sql
   let cleanSql = rawSql
-    .replace(/^```(?:sql|postgresql)?/gim, '')
+    .replace(/^```(?:sql|duckdb|postgresql)?/gim, '')
     .replace(/```$/gim, '')
     .trim();
 
@@ -78,42 +82,42 @@ function validateSql(rawSql) {
     }
   }
 
-  // Verify the query starts with SELECT or WITH
-  const trimmedStripped = stripped.trim();
-  const startsWithSelectOrWith = /^(SELECT|WITH)\b/i.test(trimmedStripped);
-  if (!startsWithSelectOrWith) {
-    return {
-      valid: false,
-      error: 'Invalid SQL statement. Only SELECT queries are permitted.'
-    };
-  }
-
   // Check for forbidden keywords anywhere in the stripped SQL
+  const trimmedStripped = stripped.trim();
   for (const cmd of FORBIDDEN_COMMANDS) {
-    // Regex matching keyword as standalone word
     const regex = new RegExp(`\\b${cmd}\\b`, 'i');
     if (regex.test(trimmedStripped)) {
       return {
         valid: false,
-        error: `Security violation: Destructive or mutating operation '${cmd}' is strictly forbidden.`
+        error: `Security violation: Destructive, mutating, or administrative operation '${cmd}' is strictly forbidden.`
       };
     }
   }
 
-  // Verify referenced tables belong only to the SaaS demo database
-  // Extract words after FROM or JOIN
-  const tableMatches = trimmedStripped.matchAll(/\b(?:FROM|JOIN)\s+([a-zA-Z0-9_]+)/gi);
-  for (const match of tableMatches) {
-    const tableName = match[1].toLowerCase();
-    // Exclude subqueries, CTEs, or functions like monthly, churned, generate_series
-    const isCteOrAlias = /^(monthly|churned|ranked|cte|sub|t\d+|q\d+)$/i.test(tableName);
-    if (!isCteOrAlias && !ALLOWED_TABLES.includes(tableName)) {
-      // Check if it's an unapproved system/user table
-      if (/^(users|accounts|passwords|information_schema|pg_|sqlite_)/i.test(tableName)) {
-        return {
-          valid: false,
-          error: `Security violation: Reference to unauthorized table '${tableName}'.`
-        };
+  // Verify the query starts with SELECT or WITH
+  const startsWithSelectOrWith = /^(SELECT|WITH)\b/i.test(trimmedStripped);
+  if (!startsWithSelectOrWith) {
+    return {
+      valid: false,
+      error: 'Security violation: Only SELECT queries are permitted.'
+    };
+  }
+
+  // If explicit allowedTables provided, verify no unauthorized system tables
+  if (allowedTables && Array.isArray(allowedTables) && allowedTables.length > 0) {
+    const lowerAllowed = allowedTables.map(t => t.toLowerCase());
+    const tableMatches = trimmedStripped.matchAll(/\b(?:FROM|JOIN)\s+([a-zA-Z0-9_]+)/gi);
+    for (const match of tableMatches) {
+      const tableName = match[1].toLowerCase();
+      // Exclude standard subquery aliases, CTEs, or generate_series/range functions
+      const isCteOrFunction = /^(monthly|churned|ranked|cte|sub|t\d+|q\d+|range|generate_series|read_csv|read_csv_auto|read_parquet)$/i.test(tableName);
+      if (!isCteOrFunction && !lowerAllowed.includes(tableName)) {
+        if (/^(information_schema|duckdb_|sqlite_|pg_|system)/i.test(tableName)) {
+          return {
+            valid: false,
+            error: `Security violation: Reference to unauthorized system table '${tableName}'.`
+          };
+        }
       }
     }
   }
@@ -124,8 +128,12 @@ function validateSql(rawSql) {
   };
 }
 
-module.exports = {
-  validateSql,
-  FORBIDDEN_COMMANDS,
-  ALLOWED_TABLES
-};
+// Support both ES Module and CommonJS
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    validateSql,
+    FORBIDDEN_COMMANDS
+  };
+}
+
+export { validateSql, FORBIDDEN_COMMANDS };

@@ -1,75 +1,94 @@
-const { describe, it } = require('node:test');
-const assert = require('node:assert/strict');
-const { validateSql, FORBIDDEN_COMMANDS } = require('../src/security/sql_guard');
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import { validateSql, FORBIDDEN_COMMANDS } from '../src/security/sql_guard.js';
 
-describe('SQL Guard & Security Validator', () => {
-  it('permits valid SELECT queries', () => {
-    const query = 'SELECT id, name, plan FROM customers WHERE status = \'active\' ORDER BY mrr DESC LIMIT 5;';
-    const res = validateSql(query);
-    assert.equal(res.valid, true);
-    assert.ok(res.sanitizedSql.includes('SELECT'));
-  });
+describe('SQL Guard & SELECT-Only Validator', () => {
+  test('permits valid analytical SELECT queries', () => {
+    const q1 = 'SELECT name, plan, mrr FROM customers WHERE status = "active" ORDER BY mrr DESC LIMIT 5;';
+    const res1 = validateSql(q1);
+    assert.equal(res1.valid, true);
 
-  it('permits valid WITH CTE queries', () => {
-    const query = `
-      WITH active_subs AS (
-        SELECT customer_id FROM subscriptions WHERE churned = false
-      )
-      SELECT c.name FROM customers c JOIN active_subs a ON a.customer_id = c.id;
+    const q2 = `
+      -- Top 5 customers by revenue
+      SELECT customer_name, SUM(amount) AS total
+      FROM orders
+      GROUP BY customer_name
+      HAVING SUM(amount) > 1000;
     `;
-    const res = validateSql(query);
+    const res2 = validateSql(q2);
+    assert.equal(res2.valid, true);
+  });
+
+  test('permits complex WITH CTE queries', () => {
+    const cte = `
+      WITH churn_summary AS (
+        SELECT plan, COUNT(*) AS churn_count
+        FROM customers
+        WHERE cancelled_at IS NOT NULL
+        GROUP BY plan
+      )
+      SELECT plan, churn_count
+      FROM churn_summary
+      ORDER BY churn_count DESC;
+    `;
+    const res = validateSql(cte);
     assert.equal(res.valid, true);
   });
 
-  it('rejects destructive SQL statements (DROP, DELETE, TRUNCATE, ALTER, INSERT, UPDATE)', () => {
-    const destructiveQueries = [
+  test('rejects destructive SQL statements (DROP, DELETE, TRUNCATE, ALTER, INSERT, UPDATE, CREATE)', () => {
+    const badQueries = [
       'DROP TABLE customers;',
-      'DELETE FROM orders WHERE id = 1;',
-      'TRUNCATE TABLE subscriptions;',
+      'DELETE FROM customers WHERE id = 1;',
+      'TRUNCATE customers;',
       'ALTER TABLE customers DROP COLUMN mrr;',
-      'INSERT INTO customers (name) VALUES (\'Hacked\');',
-      'UPDATE customers SET mrr = 999999;'
+      'INSERT INTO customers (id, name) VALUES (999, "Hacker");',
+      'UPDATE customers SET mrr = 0;',
+      'CREATE TABLE hacked (id INT);'
     ];
 
-    for (const q of destructiveQueries) {
+    for (const q of badQueries) {
       const res = validateSql(q);
-      assert.equal(res.valid, false, `Expected query to be rejected: ${q}`);
-      assert.match(res.error, /Security violation|Only SELECT/i);
+      assert.equal(res.valid, false, `Should reject: ${q}`);
+      assert.match(res.error, /Security violation|Only SELECT queries are permitted/);
     }
   });
 
-  it('rejects forbidden administrative and privilege commands', () => {
+  test('rejects DuckDB administrative and filesystem operations (COPY, EXPORT, INSTALL, LOAD, PRAGMA, ATTACH)', () => {
     const adminQueries = [
-      'GRANT ALL ON customers TO public;',
-      'REVOKE SELECT ON customers FROM analyst;',
-      'EXEC sp_executesql N\'SELECT 1\';',
-      'CALL some_stored_procedure();',
-      'CREATE TABLE backdoors (id int);'
+      'COPY customers TO "out.csv";',
+      'EXPORT DATABASE "dump";',
+      'INSTALL spatial;',
+      'LOAD spatial;',
+      'PRAGMA show_tables;',
+      'ATTACH "other.db";',
+      'CALL system_info();'
     ];
 
     for (const q of adminQueries) {
       const res = validateSql(q);
-      assert.equal(res.valid, false, `Expected admin command to be rejected: ${q}`);
+      assert.equal(res.valid, false, `Should reject admin command: ${q}`);
+      assert.match(res.error, /Security violation/);
     }
   });
 
-  it('rejects chained SQL statements (SQL injection attempt)', () => {
-    const chained = 'SELECT * FROM customers; DROP TABLE orders;';
-    const res = validateSql(chained);
-    assert.equal(res.valid, false);
-    assert.match(res.error, /Multiple SQL statements detected|Security violation/i);
+  test('rejects statement chaining and SQL injection attempts', () => {
+    const chained = [
+      'SELECT 1; DROP TABLE customers;',
+      'SELECT * FROM customers; DELETE FROM customers;',
+      'SELECT id FROM customers; UPDATE customers SET mrr = 999999;'
+    ];
+
+    for (const q of chained) {
+      const res = validateSql(q);
+      assert.equal(res.valid, false, `Should reject chained statement: ${q}`);
+      assert.match(res.error, /Multiple SQL statements detected|Security violation/);
+    }
   });
 
-  it('rejects queries referencing unauthorized tables outside SaaS Demo DB', () => {
-    const unauthorized = 'SELECT * FROM users WHERE is_admin = true;';
-    const res = validateSql(unauthorized);
-    assert.equal(res.valid, false);
-    assert.match(res.error, /unauthorized table/i);
-  });
-
-  it('rejects empty or null queries safely', () => {
+  test('rejects empty or null inputs gracefully', () => {
     assert.equal(validateSql('').valid, false);
     assert.equal(validateSql(null).valid, false);
     assert.equal(validateSql('   ').valid, false);
+    assert.equal(validateSql(undefined).valid, false);
   });
 });
