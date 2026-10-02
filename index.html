@@ -60,14 +60,23 @@
 
         <!-- QUERY INPUT CARD -->
         <div class="query-box">
-          <div class="input-wrap">
-            <svg class="search-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#6b7280" stroke-width="1.8">
-              <circle cx="7" cy="7" r="5"/>
-              <path d="M11 11l3.5 3.5"/>
-            </svg>
+          <div class="query-box-hdr">
+            <div class="query-box-hdr-left">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4f8ef7" stroke-width="1.8">
+                <circle cx="7" cy="7" r="5"/>
+                <path d="M11 11l3.5 3.5"/>
+              </svg>
+              <span>Ask a question in plain English</span>
+            </div>
+            <div class="query-box-hdr-right">
+              <span class="kbd-hint"><kbd>⌘↵</kbd> or <kbd>Ctrl+Enter</kbd> to run</span>
+            </div>
+          </div>
+          <div class="query-input-wrap">
             <textarea
               id="qi"
-              rows="1"
+              class="qi"
+              rows="2"
               placeholder="Upload a CSV dataset above to start querying..."
               disabled
               autocomplete="off"
@@ -77,10 +86,10 @@
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M4 2.5v11l9-5.5-9-5.5z"/>
               </svg>
-              Run analysis
+              <span>Run analysis</span>
             </button>
           </div>
-          <div class="examples" id="exampleChips"></div>
+          <div class="chips" id="exampleChips"></div>
         </div>
 
         <!-- DYNAMIC RESULTS AREA (Trace, SQL, Table, Insight) -->
