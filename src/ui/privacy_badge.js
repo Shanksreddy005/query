@@ -1,38 +1,16 @@
 /**
- * Privacy Guarantee Widget
- * Visually communicates that CSV and SQL remain local, and only capped operational context is sent to Claude.
+ * Privacy Trust Indicator Widget
+ * Concise, honest communication that data stays local in DuckDB-WASM and only limited AI context leaves the browser.
  */
 
 export function renderPrivacyIndicator(containerEl) {
-  const box = document.createElement('div');
-  box.className = 'privacy-indicator-widget';
-  box.innerHTML = `
-    <div class="pi-header">
-      <div class="pi-icon">🔒</div>
-      <div class="pi-title">Privacy-First Architecture</div>
+  containerEl.innerHTML = `
+    <div class="sidebar-privacy-header">
+      <span>🔒</span>
+      <span>Data stays in your browser</span>
     </div>
-    <div class="pi-checklist">
-      <div class="pi-item">
-        <span class="pi-check">✓</span>
-        <span class="pi-label">Uploaded CSV:</span>
-        <span class="pi-val">100% In-Browser Memory</span>
-      </div>
-      <div class="pi-item">
-        <span class="pi-check">✓</span>
-        <span class="pi-label">SQL Execution:</span>
-        <span class="pi-val">Local DuckDB-WASM</span>
-      </div>
-      <div class="pi-item">
-        <span class="pi-check">✓</span>
-        <span class="pi-label">Full Dataset to AI:</span>
-        <span class="pi-val">Never Transmitted</span>
-      </div>
-      <div class="pi-item">
-        <span class="pi-check">✓</span>
-        <span class="pi-label">AI Receives:</span>
-        <span class="pi-val">Schema + 5 Samples + Capped Results</span>
-      </div>
+    <div class="sidebar-privacy-body">
+      SQL runs locally with DuckDB-WASM. Only schema metadata and capped results are sent to your selected AI provider.
     </div>
   `;
-  containerEl.appendChild(box);
 }

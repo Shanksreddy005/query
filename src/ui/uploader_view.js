@@ -1,6 +1,6 @@
 /**
  * CSV Uploader & Dataset Workspace Controller
- * Handles drag-and-drop, file reading, demo CSV loading, and dataset replacement.
+ * Linear / Vercel style effortless CSV dropzone and dataset management.
  */
 
 import { loadCsvIntoDuckDB, clearActiveDataset } from '../duckdb/csv_loader.js';
@@ -18,66 +18,35 @@ export class UploaderView {
 
   render() {
     this.container.innerHTML = `
-      <div class="dataset-card" id="datasetUploaderCard">
-        <div class="card-hdr">
-          <div class="card-hdr-left">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="16" y1="13" x2="8" y2="13"/>
-              <line x1="16" y1="17" x2="8" y2="17"/>
-              <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            Dataset · In-Browser DuckDB
-          </div>
-          <div id="datasetActions" class="card-hdr-right" style="display: none;">
-            <button id="btnReplaceDataset" class="btn-sm btn-ghost">Replace CSV</button>
+      <div id="dropZone" class="dropzone-card">
+        <input type="file" id="csvFileInput" accept=".csv" style="display: none;" />
+        <div class="dropzone-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </div>
+        <div>
+          <div class="dropzone-title">Drop your CSV here, or <button type="button" id="btnBrowseFile" class="btn-link">choose file</button></div>
+          <div class="dropzone-subtitle" style="margin-top: 4px;">
+            100% in-browser WebAssembly database. Your full data never leaves your device.
           </div>
         </div>
 
-        <div id="dropZone" class="drop-zone">
-          <input type="file" id="csvFileInput" accept=".csv" style="display: none;" />
-          <div class="drop-icon">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4f8ef7" stroke-width="1.8">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17 8 12 3 7 8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-          </div>
-          <div class="drop-title">Drop your CSV here, or <button type="button" id="btnBrowseFile" class="btn-link">choose file</button></div>
-          <div class="drop-subtitle">Your data is parsed and queried 100% locally with WebAssembly. Never uploaded to QueryMind.</div>
-          
-          <div class="demo-chip-wrap">
-            <span class="muted-text">Or try with sample data:</span>
-            <button type="button" id="btnLoadDemoCsv" class="demo-chip">
-              📊 Load Sample customers.csv
-            </button>
-          </div>
+        <div class="dropzone-actions">
+          <span style="font-size: 12px; color: var(--text-muted);">or</span>
+          <button type="button" id="btnLoadDemoCsv" class="btn btn-secondary btn-sm">
+            📊 Load Sample customers.csv
+          </button>
         </div>
+      </div>
 
-        <div id="datasetMetaBanner" class="dataset-meta-banner" style="display: none;">
-          <div class="meta-item">
-            <span class="meta-label">TABLE</span>
-            <span id="metaTableName" class="meta-val mono-badge">customers</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">ROWS</span>
-            <span id="metaRowCount" class="meta-val">0</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">COLUMNS</span>
-            <span id="metaColCount" class="meta-val">0</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-label">ENGINE</span>
-            <span class="meta-val badge badge-green">DuckDB-WASM · Local</span>
-          </div>
-        </div>
-
-        <div id="uploaderLoading" class="uploader-loading" style="display: none;">
-          <div class="spinner"></div>
-          <div id="uploaderLoadingText">Initializing DuckDB-WASM engine...</div>
-        </div>
+      <div id="uploaderLoading" style="display: none; align-items: center; justify-content: center; gap: 12px; padding: 32px 0;">
+        <span style="display: inline-block; width: 16px; height: 16px; border: 2px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+        <span id="uploaderLoadingText" style="font-size: 13px; color: var(--text-secondary); font-family: var(--font-mono);">
+          Initializing DuckDB-WASM engine...
+        </span>
       </div>
     `;
 
@@ -89,41 +58,58 @@ export class UploaderView {
     const fileInput = document.getElementById('csvFileInput');
     const browseBtn = document.getElementById('btnBrowseFile');
     const demoBtn = document.getElementById('btnLoadDemoCsv');
-    const replaceBtn = document.getElementById('btnReplaceDataset');
 
-    browseBtn.addEventListener('click', () => fileInput.click());
+    if (browseBtn && fileInput) {
+      browseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      });
+    }
 
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
-      if (file) this.processCsvFile(file);
-    });
+    if (dropZone && fileInput) {
+      dropZone.addEventListener('click', () => {
+        fileInput.click();
+      });
+    }
 
-    demoBtn.addEventListener('click', () => this.loadDemoDataset());
+    if (fileInput) {
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) this.processCsvFile(file);
+      });
+    }
 
-    replaceBtn.addEventListener('click', () => this.resetDataset());
+    if (demoBtn) {
+      demoBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.loadDemoDataset();
+      });
+    }
 
     // Drag and drop handlers
-    dropZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      dropZone.classList.add('drag-over');
-    });
+    if (dropZone) {
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+      });
 
-    dropZone.addEventListener('dragleave', () => {
-      dropZone.classList.remove('drag-over');
-    });
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+      });
 
-    dropZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropZone.classList.remove('drag-over');
-      const file = e.dataTransfer?.files?.[0];
-      if (file) {
-        if (!file.name.toLowerCase().endsWith('.csv')) {
-          alert('Please upload a valid .csv file.');
-          return;
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        const file = e.dataTransfer?.files?.[0];
+        if (file) {
+          if (!file.name.toLowerCase().endsWith('.csv')) {
+            alert('Please upload a valid .csv file.');
+            return;
+          }
+          this.processCsvFile(file);
         }
-        this.processCsvFile(file);
-      }
-    });
+      });
+    }
   }
 
   showLoading(text = 'Processing CSV...') {
@@ -167,7 +153,7 @@ export class UploaderView {
   }
 
   async loadDemoDataset() {
-    this.showLoading('Loading demo dataset (sample-data/customers.csv)...');
+    this.showLoading('Loading sample customers.csv into DuckDB-WASM...');
 
     try {
       const res = await fetch('/sample-data/customers.csv');
@@ -198,16 +184,46 @@ export class UploaderView {
 
   showMetadata(datasetInfo) {
     const dropZone = document.getElementById('dropZone');
-    const banner = document.getElementById('datasetMetaBanner');
-    const actions = document.getElementById('datasetActions');
+    const queryWrap = document.getElementById('queryWorkspaceWrap');
+    const topbarBadge = document.getElementById('topbarDatasetBadge');
+    const topbarText = document.getElementById('topbarDatasetText');
+    const sidebarSlot = document.getElementById('sidebarDatasetSlot');
 
     if (dropZone) dropZone.style.display = 'none';
-    if (banner) banner.style.display = 'flex';
-    if (actions) actions.style.display = 'block';
+    if (queryWrap) queryWrap.style.display = 'flex';
 
-    document.getElementById('metaTableName').textContent = datasetInfo.tableName;
-    document.getElementById('metaRowCount').textContent = datasetInfo.totalRows.toLocaleString();
-    document.getElementById('metaColCount').textContent = datasetInfo.columns.length;
+    if (topbarBadge && topbarText) {
+      topbarBadge.style.display = 'inline-flex';
+      topbarText.textContent = `${datasetInfo.tableName}.csv · ${datasetInfo.totalRows.toLocaleString()} rows`;
+    }
+
+    if (sidebarSlot) {
+      sidebarSlot.style.display = 'flex';
+      sidebarSlot.innerHTML = `
+        <div class="sb-heading">DATASET</div>
+        <div class="sb-dataset-card">
+          <div class="sb-dataset-title">
+            <span style="color: var(--accent);">📊</span>
+            <span>${datasetInfo.tableName}.csv</span>
+          </div>
+          <div class="sb-dataset-stats">
+            <span>${datasetInfo.totalRows.toLocaleString()} rows</span>
+            <span>·</span>
+            <span>${datasetInfo.columns.length} cols</span>
+          </div>
+          <div class="sb-dataset-actions">
+            <button id="btnReplaceDataset" class="btn btn-ghost btn-sm" style="padding: 0; font-size: 11.5px; color: var(--accent);">
+              Replace CSV ↺
+            </button>
+          </div>
+        </div>
+      `;
+
+      const replaceBtn = document.getElementById('btnReplaceDataset');
+      if (replaceBtn) {
+        replaceBtn.addEventListener('click', () => this.resetDataset());
+      }
+    }
   }
 
   async resetDataset() {
@@ -218,13 +234,18 @@ export class UploaderView {
 
     this.currentDataset = null;
     const dropZone = document.getElementById('dropZone');
-    const banner = document.getElementById('datasetMetaBanner');
-    const actions = document.getElementById('datasetActions');
+    const queryWrap = document.getElementById('queryWorkspaceWrap');
+    const topbarBadge = document.getElementById('topbarDatasetBadge');
+    const sidebarSlot = document.getElementById('sidebarDatasetSlot');
     const fileInput = document.getElementById('csvFileInput');
 
-    if (dropZone) dropZone.style.display = 'block';
-    if (banner) banner.style.display = 'none';
-    if (actions) actions.style.display = 'none';
+    if (dropZone) dropZone.style.display = 'flex';
+    if (queryWrap) queryWrap.style.display = 'none';
+    if (topbarBadge) topbarBadge.style.display = 'none';
+    if (sidebarSlot) {
+      sidebarSlot.style.display = 'none';
+      sidebarSlot.innerHTML = '';
+    }
     if (fileInput) fileInput.value = '';
 
     this.onDatasetCleared();

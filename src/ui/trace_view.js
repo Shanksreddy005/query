@@ -1,45 +1,50 @@
 /**
- * 6-Stage Process Trace View
- * Animates the user-facing operational steps: waiting -> running (blue pulse) -> done (green checkmark).
- * Includes typewriter animation at ~3 chars per 8ms.
+ * Compact AI Activity Stream
+ * Operational progress indicator (Linear / Perplexity inspired)
+ * Displays active step with pulsing indicator, completed with green checkmark, waiting with muted circle.
  */
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+function escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export class TraceView {
   constructor(containerEl) {
     this.container = containerEl;
     this.steps = [];
+    this.cardEl = null;
   }
 
-  renderShell(steps) {
+  renderShell(steps = []) {
     this.steps = steps;
     const card = document.createElement('div');
-    card.className = 'trace-card';
-    card.id = 'traceCard';
+    card.className = 'ai-activity-card';
+    card.id = 'aiActivityCard';
 
     card.innerHTML = `
-      <div class="card-hdr">
-        <div class="card-hdr-left">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4f8ef7" stroke-width="1.6">
-            <circle cx="8" cy="8" r="6"/>
-            <path d="M8 5v3l2 2"/>
-          </svg>
-          Reasoning trace
-        </div>
-        <span class="badge badge-blue" id="traceStatusBadge">
-          Running<span class="dots"></span>
+      <div class="ai-activity-header">
+        <span style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--accent); font-size: 14px;">⚡</span>
+          <span>Querying your data...</span>
+        </span>
+        <span id="activityStatusBadge" style="font-size: 11.5px; color: var(--text-muted); font-family: var(--font-mono);">
+          Processing
         </span>
       </div>
-      <div class="trace-steps">
+      <div class="ai-activity-steps">
         ${steps.map((step, idx) => `
-          <div class="step" id="stepRow_${idx}">
-            <div class="step-dot waiting" id="stepDot_${idx}">${idx + 1}</div>
-            <div class="step-body">
-              <div class="step-label waiting" id="stepLabel_${idx}">${step.label}</div>
-              <div class="step-detail" id="stepDetail_${idx}"></div>
+          <div class="activity-step waiting" id="actStep_${idx}">
+            <span class="activity-step-dot" id="actDot_${idx}">○</span>
+            <div class="activity-step-body">
+              <span class="activity-step-label" id="actLabel_${idx}">${escapeHTML(step.label)}</span>
+              <span class="activity-step-detail" id="actDetail_${idx}" style="display: none;"></span>
             </div>
           </div>
         `).join('')}
@@ -47,50 +52,60 @@ export class TraceView {
     `;
 
     this.container.appendChild(card);
+    this.cardEl = card;
   }
 
   async animateStep(index, detailText) {
-    const dot = document.getElementById(`stepDot_${index}`);
-    const label = document.getElementById(`stepLabel_${index}`);
-    const detail = document.getElementById(`stepDetail_${index}`);
-    if (!dot || !label || !detail) return;
+    const stepRow = document.getElementById(`actStep_${index}`);
+    const dot = document.getElementById(`actDot_${index}`);
+    const detail = document.getElementById(`actDetail_${index}`);
+    if (!stepRow || !dot || !detail) return;
 
     // Set to running
-    dot.className = 'step-dot running';
-    label.className = 'step-label running';
-    detail.className = 'step-detail active';
-    detail.textContent = '';
+    stepRow.className = 'activity-step running';
+    dot.textContent = '●';
 
-    // Typewriter effect: ~3 chars per 8ms
-    const text = detailText || '';
-    for (let c = 0; c < text.length; c++) {
-      detail.textContent += text[c];
-      if (c % 3 === 0) {
-        await sleep(8);
-      }
+    if (detailText) {
+      detail.style.display = 'block';
+      detail.textContent = detailText;
     }
 
-    await sleep(150);
+    await sleep(80);
 
-    // Set to done
-    dot.className = 'step-dot done';
-    dot.textContent = '✓';
-    label.className = 'step-label done';
+    // Set previous step to done if not already
+    if (index > 0) {
+      const prevRow = document.getElementById(`actStep_${index - 1}`);
+      const prevDot = document.getElementById(`actDot_${index - 1}`);
+      if (prevRow && prevDot) {
+        prevRow.className = 'activity-step done';
+        prevDot.textContent = '✓';
+      }
+    }
   }
 
   complete() {
-    const badge = document.getElementById('traceStatusBadge');
+    // Mark all steps as done
+    this.steps.forEach((_, idx) => {
+      const row = document.getElementById(`actStep_${idx}`);
+      const dot = document.getElementById(`actDot_${idx}`);
+      if (row && dot) {
+        row.className = 'activity-step done';
+        dot.textContent = '✓';
+      }
+    });
+
+    const badge = document.getElementById('activityStatusBadge');
     if (badge) {
-      badge.className = 'badge badge-green';
-      badge.textContent = 'Complete ✓';
+      badge.style.color = 'var(--success)';
+      badge.textContent = 'Ready ✓';
     }
   }
 
   setError(errorText) {
-    const badge = document.getElementById('traceStatusBadge');
+    const badge = document.getElementById('activityStatusBadge');
     if (badge) {
-      badge.className = 'badge badge-danger';
-      badge.textContent = 'Error';
+      badge.style.color = 'var(--error)';
+      badge.textContent = 'Failed';
     }
   }
 }

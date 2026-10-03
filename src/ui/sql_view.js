@@ -1,6 +1,6 @@
 /**
- * Generated SQL Card & Syntax Highlighter
- * Renders verified DuckDB SQL with JetBrains Mono font and clipboard copy support.
+ * Generated SQL & Execution Details (Progressive Disclosure)
+ * Renders verified DuckDB SQL inside an expandable accordion with JetBrains Mono syntax highlighting and copy support.
  */
 
 function escapeHTML(str) {
@@ -87,36 +87,120 @@ export function copySQL(btn, rawSql) {
   const origText = btn.textContent;
   btn.textContent = 'Copied!';
   btn.style.color = 'var(--success)';
-  btn.style.borderColor = 'var(--success)';
 
   setTimeout(() => {
     btn.textContent = origText;
     btn.style.color = '';
-    btn.style.borderColor = '';
   }, 1500);
 }
 
+/**
+ * Renders Progressive Disclosure Accordion for Generated SQL
+ */
 export function renderSqlCard(sql, activeTableName = null) {
   const card = document.createElement('div');
-  card.className = 'sql-card';
+  card.className = 'accordion-card';
   card.innerHTML = `
-    <div class="card-hdr">
-      <div class="card-hdr-left">
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#34c97b" stroke-width="1.6">
-          <path d="M2 4h12M5 8h8M8 12h4"/>
-        </svg>
-        Generated SQL
-        <span class="badge badge-green" style="margin-left: 6px;">DuckDB-WASM · Local</span>
+    <button class="accordion-trigger" type="button" id="toggleSqlBtn">
+      <span style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--accent);">⌨</span>
+        <span>Generated SQL</span>
+        <span class="provider-tier-badge badge-green" style="font-size: 11px;">DuckDB-WASM · Local</span>
+      </span>
+      <span class="accordion-icon" id="sqlAccordionIcon" style="font-size: 11px; color: var(--text-muted);">▼ Expand</span>
+    </button>
+    <div class="accordion-content" id="sqlContent">
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+        <button class="btn btn-ghost btn-sm" id="copySqlBtn" style="border: 1px solid var(--border); border-radius: var(--radius-sm);">
+          Copy SQL
+        </button>
       </div>
-      <button class="copy-btn" id="copySqlBtn">Copy</button>
-    </div>
-    <div class="sql-body">
-      <pre class="sql-code">${highlightSQL(sql, activeTableName)}</pre>
+      <pre class="sql-code-block">${highlightSQL(sql, activeTableName)}</pre>
     </div>
   `;
 
+  const toggleBtn = card.querySelector('#toggleSqlBtn');
+  const content = card.querySelector('#sqlContent');
+  const icon = card.querySelector('#sqlAccordionIcon');
   const copyBtn = card.querySelector('#copySqlBtn');
-  copyBtn.addEventListener('click', () => copySQL(copyBtn, sql));
+
+  toggleBtn.addEventListener('click', () => {
+    const isOpen = content.classList.contains('open');
+    if (isOpen) {
+      content.classList.remove('open');
+      icon.textContent = '▼ Expand';
+    } else {
+      content.classList.add('open');
+      icon.textContent = '▲ Collapse';
+    }
+  });
+
+  copyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copySQL(copyBtn, sql);
+  });
+
+  return card;
+}
+
+/**
+ * Renders Progressive Disclosure Accordion for Execution Details
+ */
+export function renderTechnicalDetailsCard(details = {}) {
+  const card = document.createElement('div');
+  card.className = 'accordion-card';
+  card.innerHTML = `
+    <button class="accordion-trigger" type="button" id="toggleDetailsBtn">
+      <span style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: var(--text-secondary);">⚙</span>
+        <span>Execution Details</span>
+      </span>
+      <span class="accordion-icon" id="detailsAccordionIcon" style="font-size: 11px; color: var(--text-muted);">▼ Expand</span>
+    </button>
+    <div class="accordion-content" id="detailsContent">
+      <div class="tech-details-grid">
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">AI Provider</span>
+          <span class="tech-detail-val">${escapeHTML(details.provider || 'Anthropic')}</span>
+        </div>
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">Model</span>
+          <span class="tech-detail-val">${escapeHTML(details.model || 'claude-sonnet-5-5')}</span>
+        </div>
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">Local Query Latency</span>
+          <span class="tech-detail-val">${details.executionTimeMs || 0} ms</span>
+        </div>
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">Rows Returned</span>
+          <span class="tech-detail-val">${details.totalRowCount || 0} rows</span>
+        </div>
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">Agent Planning Rounds</span>
+          <span class="tech-detail-val">${details.rounds || 1} / 5 max</span>
+        </div>
+        <div class="tech-detail-item">
+          <span class="tech-detail-label">Execution Engine</span>
+          <span class="tech-detail-val">DuckDB-WASM (In-Browser Worker)</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const toggleBtn = card.querySelector('#toggleDetailsBtn');
+  const content = card.querySelector('#detailsContent');
+  const icon = card.querySelector('#detailsAccordionIcon');
+
+  toggleBtn.addEventListener('click', () => {
+    const isOpen = content.classList.contains('open');
+    if (isOpen) {
+      content.classList.remove('open');
+      icon.textContent = '▼ Expand';
+    } else {
+      content.classList.add('open');
+      icon.textContent = '▲ Collapse';
+    }
+  });
 
   return card;
 }

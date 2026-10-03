@@ -3,97 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>QueryMind — Natural Language Analytics Engine (DuckDB-WASM + BYOK AI)</title>
+  <title>QueryMind — AI-Powered Data Analyst (DuckDB-WASM + BYOK)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div class="app">
-    <!-- LEFT SIDEBAR -->
+    <!-- LEFT SIDEBAR (Linear Style) -->
     <aside class="sidebar" id="sidebarEl">
-      <div class="logo">
-        <div class="logo-mark">
-          <div class="logo-icon">
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M2 4h12M2 8h8M2 12h5"/>
-            </svg>
-          </div>
-          <div>
-            <div class="logo-name">QueryMind</div>
-            <div class="logo-tag">NL → SQL · DuckDB-WASM</div>
-          </div>
+      <div class="sidebar-header">
+        <div class="sidebar-logo">
+          <span class="brand-icon">◈</span>
+          <span>QueryMind</span>
         </div>
       </div>
 
-      <!-- PRIVACY INDICATOR SLOT -->
-      <div id="privacyIndicatorSlot"></div>
+      <div class="sidebar-content">
+        <!-- DATASET SUMMARY SLOT (when loaded) -->
+        <div id="sidebarDatasetSlot" class="sb-section" style="display: none;"></div>
 
-      <!-- DYNAMIC SCHEMA EXPLORER -->
-      <div id="sidebarSchema" class="sb-section"></div>
+        <!-- DYNAMIC SCHEMA EXPLORER -->
+        <div id="sidebarSchema" class="sb-section"></div>
 
-      <!-- RECENT QUERY HISTORY -->
-      <div id="sidebarHistory" class="sb-section" style="margin-top: auto;"></div>
+        <!-- RECENT QUERY HISTORY -->
+        <div id="sidebarHistory" class="sb-section"></div>
+
+        <!-- PRIVACY INDICATOR (at bottom) -->
+        <div id="privacyIndicatorSlot" class="sidebar-privacy"></div>
+      </div>
     </aside>
 
-    <!-- MAIN WORKSPACE -->
+    <!-- MAIN WORKSPACE (Perplexity × Hex × Vercel) -->
     <main class="main">
       <header class="topbar">
         <div class="topbar-left">
           <button class="btn-icon mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
             ☰
           </button>
-          <div>
-            <h1 class="topbar-title">Ask your dataset anything</h1>
-            <p class="topbar-subtitle">Claude plans SQL · DuckDB-WASM executes locally in your browser</p>
+          <a class="topbar-brand" href="#">
+            <span class="brand-icon">◈</span>
+            <span>QueryMind</span>
+          </a>
+          <span class="topbar-divider"></span>
+          <div id="topbarDatasetBadge" class="dataset-badge-top" style="display: none;">
+            <span class="dot"></span>
+            <span id="topbarDatasetText">customers.csv</span>
           </div>
         </div>
         <div class="topbar-right">
-          <!-- Key controls injected here by ApiKeyModal -->
+          <!-- Key controls injected here by ApiKeyModal: Provider pill & Key Settings -->
         </div>
       </header>
 
-      <div class="content">
-        <!-- CSV UPLOADER SLOT -->
+      <div class="content-container">
+        <!-- CSV UPLOADER SLOT (Dropzone) -->
         <div id="uploaderSlot"></div>
 
-        <!-- QUERY INPUT CARD -->
-        <div class="query-box">
-          <div class="query-box-hdr">
-            <div class="query-box-hdr-left">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4f8ef7" stroke-width="1.8">
-                <circle cx="7" cy="7" r="5"/>
-                <path d="M11 11l3.5 3.5"/>
-              </svg>
-              <span>Ask a question in plain English</span>
-            </div>
-            <div class="query-box-hdr-right">
-              <span class="kbd-hint"><kbd>⌘↵</kbd> or <kbd>Ctrl+Enter</kbd> to run</span>
-            </div>
+        <!-- QUERY HERO & INPUT WRAPPER (Shown when dataset loaded) -->
+        <div id="queryWorkspaceWrap" class="query-container" style="display: none;">
+          <div class="hero-state" id="heroState">
+            <h2 class="hero-title">Ask your data</h2>
+            <p class="hero-subtitle">What would you like to know?</p>
           </div>
-          <div class="query-input-wrap">
+
+          <div class="query-card">
             <textarea
               id="qi"
-              class="qi"
+              class="query-textarea"
               rows="2"
-              placeholder="Upload a CSV dataset above to start querying..."
+              placeholder="Ask a question about your dataset in plain English..."
               disabled
               autocomplete="off"
               spellcheck="false"
             ></textarea>
-            <button id="runBtn" class="run-btn" disabled>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M4 2.5v11l9-5.5-9-5.5z"/>
-              </svg>
-              <span>Run analysis</span>
-            </button>
+            <div class="query-card-footer">
+              <span class="query-shortcuts-hint">
+                <kbd>⌘↵</kbd> or <kbd>Ctrl+Enter</kbd> to run
+              </span>
+              <button id="runBtn" class="btn btn-primary" disabled>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M4 2.5v11l9-5.5-9-5.5z"/>
+                </svg>
+                <span>Run</span>
+              </button>
+            </div>
           </div>
-          <div class="chips" id="exampleChips"></div>
+
+          <div class="suggestions-pills" id="exampleChips"></div>
         </div>
 
-        <!-- DYNAMIC RESULTS AREA (Trace, SQL, Table, Insight) -->
-        <div id="area" class="results-area"></div>
+        <!-- DYNAMIC RESULTS AREA (AI Stream, Insight, KPIs, Table, SQL Accordion, Tech Details) -->
+        <div id="area" class="results-stack"></div>
       </div>
     </main>
   </div>

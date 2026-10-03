@@ -1,7 +1,6 @@
 /**
- * Memory-Only Query History View
- * Tracks questions asked during the active browser session.
- * Never persists queries or results to localStorage.
+ * Memory-Only Query History View (Linear inspired)
+ * Compact list of questions asked during the active browser session.
  */
 
 function escapeHTML(str) {
@@ -38,24 +37,41 @@ export class HistoryView {
 
   render() {
     this.container.innerHTML = `
-      <div class="sb-label">Recent Queries</div>
-      <div class="hist-list">
+      <div class="sb-heading">
+        <span>HISTORY</span>
+        ${this.history.length > 0 ? `
+          <button id="btnClearHistoryBtn" class="btn btn-ghost btn-sm" style="height: auto; padding: 0; font-size: 10px; color: var(--text-muted);">
+            Clear
+          </button>
+        ` : ''}
+      </div>
+
+      <div class="history-list">
         ${this.history.length === 0 ? `
-          <div class="hist-empty">No recent queries in this session</div>
+          <div class="history-empty">No recent queries in session</div>
         ` : this.history.map(item => `
-          <div class="hist-item" title="${escapeHTML(item)}">
-            ${escapeHTML(item)}
+          <div class="history-item" title="${escapeHTML(item)}">
+            <span style="color: var(--text-muted); font-size: 11px;">↳</span>
+            <span style="overflow: hidden; text-overflow: ellipsis;">${escapeHTML(item)}</span>
           </div>
         `).join('')}
       </div>
     `;
 
-    // Bind click events
-    const items = this.container.querySelectorAll('.hist-item');
+    // Bind click events to items
+    const items = this.container.querySelectorAll('.history-item');
     items.forEach((el, idx) => {
       el.addEventListener('click', () => {
         this.onSelectQuery(this.history[idx]);
       });
     });
+
+    const clearBtn = this.container?.querySelector ? this.container.querySelector('#btnClearHistoryBtn') : null;
+    if (clearBtn && typeof clearBtn.addEventListener === 'function') {
+      clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.clear();
+      });
+    }
   }
 }

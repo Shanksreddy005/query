@@ -1,7 +1,7 @@
 /**
  * BYOK Multi-Provider API Key Modal & Key Lifecycle Manager
  * Supports Google Gemini (Free Tier), Groq (Free Developer Tier), Anthropic Claude, and OpenAI.
- * Credentials exist only in runtime memory.
+ * Linear × Vercel elevated design system. Credentials exist only in runtime memory.
  */
 
 import { providerManager } from '../agent/provider_manager.js';
@@ -11,7 +11,7 @@ const PROVIDER_METADATA = {
   [PROVIDERS.GEMINI]: {
     name: 'Google Gemini',
     badge: 'Free Tier',
-    badgeClass: 'free',
+    badgeClass: 'badge-green',
     keyPlaceholder: 'AIzaSy...',
     keyLabel: 'Google Gemini API Key',
     helpUrl: 'https://aistudio.google.com/app/apikey',
@@ -20,7 +20,7 @@ const PROVIDER_METADATA = {
   [PROVIDERS.GROQ]: {
     name: 'Groq',
     badge: 'Free Developer Tier',
-    badgeClass: 'free',
+    badgeClass: 'badge-green',
     keyPlaceholder: 'gsk_...',
     keyLabel: 'Groq API Key',
     helpUrl: 'https://console.groq.com/keys',
@@ -29,7 +29,7 @@ const PROVIDER_METADATA = {
   [PROVIDERS.ANTHROPIC]: {
     name: 'Anthropic Claude',
     badge: 'BYOK',
-    badgeClass: 'byok',
+    badgeClass: 'badge-blue',
     keyPlaceholder: 'sk-ant-api03-...',
     keyLabel: 'Anthropic Claude API Key',
     helpUrl: 'https://console.anthropic.com/settings/keys',
@@ -38,7 +38,7 @@ const PROVIDER_METADATA = {
   [PROVIDERS.OPENAI]: {
     name: 'OpenAI',
     badge: 'BYOK',
-    badgeClass: 'byok',
+    badgeClass: 'badge-blue',
     keyPlaceholder: 'sk-...',
     keyLabel: 'OpenAI API Key',
     helpUrl: 'https://platform.openai.com/api-keys',
@@ -67,22 +67,17 @@ export class ApiKeyModal {
 
     const modal = document.createElement('div');
     modal.id = 'apiKeyModal';
-    modal.className = 'modal-backdrop';
+    modal.className = 'modal-overlay';
+    modal.style.display = 'none';
+
     modal.innerHTML = `
-      <div class="modal-card">
+      <div class="modal-dialog">
         <div class="modal-header">
-          <div class="modal-title-group">
-            <div class="modal-icon">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </div>
-            <div>
-              <div class="modal-title">QueryMind — Private AI Analytics</div>
-              <div class="modal-subtitle">Bring Your Own Key (BYOK) · 100% In-Browser Execution</div>
-            </div>
+          <div>
+            <div class="modal-title">AI Provider & Key Settings</div>
+            <div class="modal-subtitle">BYOK Architecture · 100% in-browser memory execution</div>
           </div>
+          <button type="button" id="btnCloseModalX" class="btn-icon" title="Close">✕</button>
         </div>
 
         <div class="modal-body">
@@ -101,7 +96,7 @@ export class ApiKeyModal {
                 </label>
               `).join('')}
             </div>
-            <div id="providerHelpLinkWrap" style="margin-top: 6px;"></div>
+            <div id="providerHelpLinkWrap" style="margin-top: 4px;"></div>
           </div>
 
           <div class="form-group">
@@ -115,7 +110,7 @@ export class ApiKeyModal {
                 type="text" 
                 id="customModelInput" 
                 class="form-input mono" 
-                placeholder="e.g. gemini-3.1-flash-live-preview, gemini-3.5-flash" 
+                placeholder="e.g. gemini-3.1-flash-live-preview or llama-3.3-70b-versatile" 
                 autocomplete="off" 
                 spellcheck="false" 
               />
@@ -144,10 +139,10 @@ export class ApiKeyModal {
           <div class="fallback-box">
             <label class="fallback-label">
               <input type="checkbox" id="allowFallbackCheckbox" />
-              <span><strong>Allow provider fallback:</strong> Automatically retry with another provider on rate limits</span>
+              <span><strong>Allow provider fallback:</strong> Auto-retry with secondary provider on rate limits</span>
             </label>
-            <div id="fallbackSelectContainer" style="display: none; margin-top: 10px;">
-              <label class="form-label" for="fallbackProviderSelect" style="font-size: 11.5px;">Fallback Provider (Only used if key is configured)</label>
+            <div id="fallbackSelectContainer" style="display: none; margin-top: 8px;">
+              <label class="form-label" for="fallbackProviderSelect" style="font-size: 11.5px;">Fallback Provider</label>
               <select id="fallbackProviderSelect" class="form-select">
                 <option value="groq">Groq (Llama 3.3 70B · Free Developer Tier)</option>
                 <option value="gemini">Google Gemini (Gemini 2.0 Flash · Free Tier)</option>
@@ -157,13 +152,10 @@ export class ApiKeyModal {
             </div>
           </div>
 
-          <div class="privacy-callout" style="margin-top: 14px;">
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#34c97b" stroke-width="1.8" style="flex-shrink: 0; margin-top: 2px;">
-              <path d="M8 1v5M8 9v6M1 8h14"/>
-              <circle cx="8" cy="8" r="7"/>
-            </svg>
+          <div class="privacy-callout">
+            <span>🔒</span>
             <div>
-              <strong>Client-Side BYOK Security Model:</strong> Provider API keys are supplied by the user and held only in browser runtime memory. QueryMind does not persist or proxy keys through its own infrastructure. Because the key is used directly by the browser, users should only enter API keys they are comfortable using in a client-side application. Free-tier availability and limits are determined by each provider and may change. Closing or refreshing this tab wipes all keys immediately.
+              <strong>Memory-Only Key Guarantee:</strong> Your key is held only in browser runtime memory for this active session. It is never saved to cookies, localStorage, or remote servers. Refreshing wipes all keys immediately.
             </div>
           </div>
         </div>
@@ -187,14 +179,23 @@ export class ApiKeyModal {
     const toggleBtn = document.getElementById('toggleKeyVisibility');
     const verifyBtn = document.getElementById('btnVerifyKey');
     const demoBtn = document.getElementById('btnContinueDemo');
+    const closeXBtn = document.getElementById('btnCloseModalX');
     const modelSelect = document.getElementById('modelSelect');
     const fallbackCheckbox = document.getElementById('allowFallbackCheckbox');
     const fallbackSelectContainer = document.getElementById('fallbackSelectContainer');
     const fallbackProviderSelect = document.getElementById('fallbackProviderSelect');
+    const customWrap = document.getElementById('customModelWrap');
+    const customInput = document.getElementById('customModelInput');
 
     // Populate initial state
     this.refreshModelOptions();
     this.updateInputLabels();
+
+    // Close actions
+    closeXBtn?.addEventListener('click', () => this.hide());
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) this.hide();
+    });
 
     // Provider card switching
     const selectProvider = (prov) => {
@@ -216,7 +217,7 @@ export class ApiKeyModal {
 
     Object.keys(PROVIDER_METADATA).forEach(k => {
       const card = document.getElementById(`card_${k}`);
-      card?.addEventListener('click', (e) => {
+      card?.addEventListener('click', () => {
         selectProvider(k);
       });
     });
@@ -225,9 +226,6 @@ export class ApiKeyModal {
       input.type = input.type === 'password' ? 'text' : 'password';
       toggleBtn.textContent = input.type === 'password' ? '👁' : '🔒';
     });
-
-    const customWrap = document.getElementById('customModelWrap');
-    const customInput = document.getElementById('customModelInput');
 
     modelSelect.addEventListener('change', () => {
       if (modelSelect.value === '__custom__') {
@@ -347,12 +345,12 @@ export class ApiKeyModal {
     input.placeholder = meta.keyPlaceholder || 'Enter API Key...';
 
     if (providerManager.hasApiKey(this.selectedProvider)) {
-      label.textContent += ' (Key already configured in memory)';
+      label.textContent += ' (Key already in memory)';
     }
 
     if (helpWrap && meta.helpUrl) {
       helpWrap.innerHTML = `
-        <a href="${meta.helpUrl}" target="_blank" rel="noopener noreferrer" class="provider-help-link">
+        <a href="${meta.helpUrl}" target="_blank" rel="noopener noreferrer" class="btn-link" style="font-size: 12px;">
           ${meta.helpText}
         </a>
       `;
@@ -366,19 +364,24 @@ export class ApiKeyModal {
     const wrap = document.createElement('div');
     wrap.className = 'topbar-key-controls';
     wrap.innerHTML = `
-      <div id="keyStatusBadge" class="badge badge-blue">
+      <div id="keyStatusBadge" class="provider-status-badge" title="Click to change provider or model">
         <span class="status-dot"></span>
-        <span class="status-text">○ No API Key (Demo Mode)</span>
+        <span class="status-text">Demo Mode</span>
       </div>
-      <button id="btnClearKeyBtn" class="btn-sm btn-ghost" style="display: none;" title="Wipe active API key from memory">
+      <button id="btnClearKeyBtn" class="btn btn-ghost btn-sm" style="display: none;" title="Wipe API key from memory">
         Clear Key
       </button>
-      <button id="btnOpenKeyModal" class="btn-sm btn-secondary" title="Configure AI Provider & Key">
-        Key Settings
+      <button id="btnOpenKeyModal" class="btn btn-secondary btn-sm" title="Configure AI Provider & Key">
+        <span>⚙</span>
+        <span>Key Settings</span>
       </button>
     `;
 
     topbarRight.prepend(wrap);
+
+    document.getElementById('keyStatusBadge').addEventListener('click', () => {
+      this.show();
+    });
 
     document.getElementById('btnClearKeyBtn').addEventListener('click', () => {
       providerManager.clearApiKey(this.selectedProvider);
@@ -442,7 +445,7 @@ export class ApiKeyModal {
       }
       providerManager.setActiveModel(provider, finalModel);
       this.refreshModelOptions();
-      input.value = ''; // Immediately clear DOM input for security
+      input.value = ''; // Clear DOM input for security
       this.updateStatus();
       this.hide();
       this.onKeyConfigured();
@@ -460,7 +463,6 @@ export class ApiKeyModal {
     const config = providerManager.getActiveConfig();
 
     if (config.hasKey) {
-      badge.className = 'badge badge-green';
       let cleanLabel = config.modelLabel;
       if (config.provider === PROVIDERS.GEMINI) {
         cleanLabel = cleanLabel.replace('Gemini ', '');
@@ -468,11 +470,10 @@ export class ApiKeyModal {
         cleanLabel = cleanLabel.replace('Claude ', '');
       }
       const provName = PROVIDER_METADATA[config.provider]?.name || config.provider;
-      badge.innerHTML = `<span class="status-dot green"></span>● ${provName} · ${cleanLabel}`;
+      badge.innerHTML = `<span class="status-dot green"></span><span>● ${provName} · ${cleanLabel}</span>`;
       if (clearBtn) clearBtn.style.display = 'inline-flex';
     } else {
-      badge.className = 'badge badge-blue';
-      badge.innerHTML = `<span class="status-dot blue"></span>○ No API Key (Demo Mode)`;
+      badge.innerHTML = `<span class="status-dot"></span><span>○ Demo Mode</span>`;
       if (clearBtn) clearBtn.style.display = 'none';
     }
   }

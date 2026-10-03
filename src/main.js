@@ -1,7 +1,7 @@
 /**
  * QueryMind Main Application Controller
- * Browser-native natural language to SQL analytics engine.
- * Coordinates DuckDB-WASM, BYOK Claude Agent, local CSV ingestion, and the interactive UI.
+ * Linear × Perplexity × Hex × Vercel Inspired UI/UX Architecture
+ * Coordinates DuckDB-WASM, BYOK AI Agent, local CSV ingestion, and the answer-first interactive workspace.
  */
 
 import { getDuckDB } from './duckdb/init.js';
@@ -10,7 +10,7 @@ import { ApiKeyModal } from './ui/api_key_modal.js';
 import { UploaderView } from './ui/uploader_view.js';
 import { SchemaView } from './ui/schema_view.js';
 import { TraceView } from './ui/trace_view.js';
-import { renderSqlCard } from './ui/sql_view.js';
+import { renderSqlCard, renderTechnicalDetailsCard } from './ui/sql_view.js';
 import { renderResultsTable } from './ui/results_view.js';
 import { InsightView } from './ui/insight_view.js';
 import { HistoryView } from './ui/history_view.js';
@@ -23,21 +23,32 @@ let isRunning = false;
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Elements
+  const sidebarEl = document.getElementById('sidebarEl');
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
   const sidebarSchemaEl = document.getElementById('sidebarSchema');
   const sidebarHistoryEl = document.getElementById('sidebarHistory');
   const privacySlotEl = document.getElementById('privacyIndicatorSlot');
   const uploaderSlotEl = document.getElementById('uploaderSlot');
+  const queryWorkspaceWrap = document.getElementById('queryWorkspaceWrap');
+  const heroStateEl = document.getElementById('heroState');
   const queryInput = document.getElementById('qi');
   const runBtn = document.getElementById('runBtn');
   const exampleChipsContainer = document.getElementById('exampleChips');
   const mainWorkspaceArea = document.getElementById('area');
 
-  // 1. Render Privacy Guarantee Widget
+  // Mobile drawer toggle
+  if (mobileMenuBtn && sidebarEl) {
+    mobileMenuBtn.addEventListener('click', () => {
+      sidebarEl.classList.toggle('open');
+    });
+  }
+
+  // 1. Render Privacy Guarantee Widget in Sidebar Footer
   if (privacySlotEl) {
     renderPrivacyIndicator(privacySlotEl);
   }
 
-  // 2. Initialize Sidebar Schema View
+  // 2. Initialize Dynamic Sidebar Schema View
   const schemaView = new SchemaView(sidebarSchemaEl);
 
   // 3. Initialize Sidebar History View
@@ -48,11 +59,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         queryInput.value = q;
         autoResizeInput(queryInput);
         queryInput.focus();
+        if (sidebarEl) sidebarEl.classList.remove('open');
       }
     }
   });
 
-  // 4. Initialize CSV Uploader
+  // 4. Initialize CSV Uploader (Effortless Dropzone)
   const uploaderView = new UploaderView({
     containerEl: uploaderSlotEl,
     getDuckDB: getDuckDB,
@@ -60,9 +72,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       activeDataset = datasetInfo;
       schemaView.renderSchema(datasetInfo);
       updateDynamicExampleChips(datasetInfo);
+
+      if (queryWorkspaceWrap) queryWorkspaceWrap.style.display = 'flex';
+      if (heroStateEl) {
+        heroStateEl.querySelector('.hero-subtitle').textContent = `Ask anything about ${datasetInfo.tableName} (${datasetInfo.totalRows.toLocaleString()} rows, ${datasetInfo.columns.length} columns)`;
+      }
+
       if (queryInput) {
         queryInput.disabled = false;
-        queryInput.placeholder = `Ask a question about "${datasetInfo.tableName}"... (Press ⌘↵ or Ctrl+Enter to run)`;
+        queryInput.placeholder = `Ask a question about ${datasetInfo.tableName}... (Press ⌘↵ or Ctrl+Enter to run)`;
+        queryInput.focus();
       }
       if (runBtn) runBtn.disabled = false;
     },
@@ -71,6 +90,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       schemaView.renderEmpty();
       renderDefaultExampleChips();
       mainWorkspaceArea.innerHTML = '';
+
+      if (queryWorkspaceWrap) queryWorkspaceWrap.style.display = 'none';
       if (queryInput) {
         queryInput.value = '';
         queryInput.placeholder = 'Upload a CSV dataset above to start querying...';
@@ -83,20 +104,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 5. Initialize BYOK API Key Modal
   const apiKeyModal = new ApiKeyModal({
     onKeyConfigured: () => {
-      // Auto-load demo dataset if no dataset is loaded yet
       if (!activeDataset) {
         uploaderView.loadDemoDataset();
       }
     },
     onDemoMode: () => {
-      // Load demo dataset in demo mode
       if (!activeDataset) {
         uploaderView.loadDemoDataset();
       }
     }
   });
 
-  // Prompt for key on startup if not already entered
+  // Startup prompt if no key is configured
   if (!providerManager.hasAnyKey()) {
     apiKeyModal.show();
   } else {
@@ -106,7 +125,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 6. Query Input Auto-Resize & Shortcuts
   function autoResizeInput(el) {
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 140) + 'px';
+    el.style.height = Math.min(el.scrollHeight, 180) + 'px';
   }
 
   if (queryInput) {
@@ -126,18 +145,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     runBtn.addEventListener('click', () => handleExecuteQuery());
   }
 
-  // 7. Dynamic Example Chips
+  // 7. Dynamic Suggestion Pills
   function renderDefaultExampleChips() {
+    if (!exampleChipsContainer) return;
     exampleChipsContainer.innerHTML = `
-      <button class="chip" data-q="Show customers who cancelled their subscription last month.">Cancelled last month</button>
-      <button class="chip" data-q="Which plan has the highest average MRR?">Avg MRR by plan</button>
-      <button class="chip" data-q="How many active customers are there by plan?">Active customers by plan</button>
-      <button class="chip" data-q="Which customers generated more than $5,000 in monthly recurring revenue?">MRR > $5,000</button>
+      <button class="suggestion-pill" data-q="Show customers who cancelled their subscription last month.">Cancelled last month</button>
+      <button class="suggestion-pill" data-q="Which plan has the highest average MRR?">Avg MRR by plan</button>
+      <button class="suggestion-pill" data-q="How many active customers are there by plan?">Active customers by plan</button>
+      <button class="suggestion-pill" data-q="Which customers generated more than $5,000 in monthly recurring revenue?">MRR > $5,000</button>
     `;
     bindChipClicks();
   }
 
   function updateDynamicExampleChips(datasetInfo) {
+    if (!exampleChipsContainer) return;
     const cols = datasetInfo.columns.map(c => c.name.toLowerCase());
     const chips = [];
 
@@ -159,14 +180,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     exampleChipsContainer.innerHTML = chips
-      .map(c => `<button class="chip" data-q="${escapeAttr(c.q)}">${escapeHTML(c.label)}</button>`)
+      .map(c => `<button class="suggestion-pill" data-q="${escapeAttr(c.q)}">${escapeHTML(c.label)}</button>`)
       .join('');
 
     bindChipClicks();
   }
 
   function bindChipClicks() {
-    const chips = exampleChipsContainer.querySelectorAll('.chip');
+    if (!exampleChipsContainer) return;
+    const chips = exampleChipsContainer.querySelectorAll('.suggestion-pill');
     chips.forEach(btn => {
       btn.addEventListener('click', () => {
         const q = btn.dataset.q;
@@ -182,7 +204,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderDefaultExampleChips();
 
-  // 8. Primary Query Execution Pipeline
+  // 8. Primary Query Execution Pipeline (Answer-First Architecture)
   async function handleExecuteQuery() {
     if (isRunning) return;
 
@@ -197,11 +219,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Check if API key is present for active provider
+    // Check if API key is configured
     if (!providerManager.hasApiKey()) {
-      const provName = providerManager.getActiveProvider() === 'openai' ? 'OpenAI' : 'Anthropic Claude';
+      const provName = providerManager.getActiveConfig().provider;
       const proceed = confirm(
-        `Natural-language analysis requires your ${provName} API key.\n\nClick OK to enter your API key, or Cancel to execute raw SQL directly.`
+        `Natural-language analysis requires an API key for ${provName}.\n\nClick OK to configure your key in Key Settings, or Cancel to run raw SQL directly.`
       );
       if (proceed) {
         apiKeyModal.show();
@@ -211,34 +233,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     isRunning = true;
     runBtn.disabled = true;
-    runBtn.innerHTML = '<span class="dots">Analyzing</span>';
+    runBtn.innerHTML = `
+      <span style="display: inline-block; width: 12px; height: 12px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite;"></span>
+      <span>Analyzing</span>
+    `;
 
     historyView.add(question);
     mainWorkspaceArea.innerHTML = '';
 
     const { conn } = await getDuckDB();
 
-    // Direct SQL check (if user entered raw SELECT ... query)
+    // Direct SQL check (if user entered raw SELECT / WITH statement)
     if (/^\s*(SELECT|WITH)\b/i.test(question)) {
       await handleDirectSqlQuery(conn, question);
       resetRunButton();
       return;
     }
 
-    // 6-step reasoning trace shell
+    // 1. Compact AI Activity Stream
     const traceView = new TraceView(mainWorkspaceArea);
     traceView.renderShell([
       { label: 'Understanding your question' },
-      { label: 'Inspecting the dataset schema' },
-      { label: 'Planning the SQL query' },
-      { label: 'Generating SQL' },
-      { label: 'Running SQL locally in DuckDB' },
-      { label: 'Checking the results' }
+      { label: 'Inspecting dataset schema' },
+      { label: 'Generating SQL query' },
+      { label: 'Executing query locally in DuckDB' },
+      { label: 'Synthesizing business insight' }
     ]);
 
-    let generatedSqlHolder = null;
-
     try {
+      const activeConfig = providerManager.getActiveConfig();
+
       const agentResult = await runAgentLoop({
         question,
         conn,
@@ -246,9 +270,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         onTraceStep: async (stepIdx, label, detail) => {
           await traceView.animateStep(stepIdx, detail);
         },
-        onSqlGenerated: (sql) => {
-          generatedSqlHolder = sql;
-        }
+        onSqlGenerated: () => {}
       });
 
       if (!agentResult.success) {
@@ -259,23 +281,55 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       traceView.complete();
 
-      // Render Generated SQL Card
-      if (agentResult.sql) {
-        const sqlCard = renderSqlCard(agentResult.sql, activeDataset.tableName);
-        mainWorkspaceArea.appendChild(sqlCard);
+      // Clear activity stream card to give prime visual focus to the answer
+      // (or settle it smoothly)
+      const activityEl = document.getElementById('aiActivityCard');
+      if (activityEl) {
+        activityEl.style.opacity = '0.6';
+        activityEl.style.transform = 'scale(0.99)';
+        activityEl.style.transition = 'all 0.3s ease';
       }
 
-      // Render Results Table
+      // 2. Question Banner
+      const qBanner = document.createElement('div');
+      qBanner.className = 'question-banner';
+      qBanner.innerHTML = `
+        <span style="color: var(--accent); font-weight: 600;">Q:</span>
+        <strong>${escapeHTML(question)}</strong>
+      `;
+      mainWorkspaceArea.appendChild(qBanner);
+
+      // 3. ANSWER-FIRST: AI Executive Insight
+      if (agentResult.insight) {
+        const insightView = new InsightView(mainWorkspaceArea);
+        await insightView.render(agentResult.insight);
+      }
+
+      // 4. KPI Cards + Detailed Results Data Table
       if (agentResult.results) {
         const resultsTable = renderResultsTable(agentResult.results);
         mainWorkspaceArea.appendChild(resultsTable);
       }
 
-      // Render AI Insight
-      if (agentResult.insight) {
-        const insightView = new InsightView(mainWorkspaceArea);
-        await insightView.render(agentResult.insight);
+      // 5. PROGRESSIVE DISCLOSURE: Generated SQL Accordion
+      if (agentResult.sql) {
+        const sqlAccordion = renderSqlCard(agentResult.sql, activeDataset.tableName);
+        mainWorkspaceArea.appendChild(sqlAccordion);
       }
+
+      // 6. PROGRESSIVE DISCLOSURE: Technical Execution Details Accordion
+      const techDetails = renderTechnicalDetailsCard({
+        provider: activeConfig.provider,
+        model: activeConfig.modelLabel,
+        executionTimeMs: agentResult.results?.executionTimeMs || 0,
+        totalRowCount: agentResult.results?.totalRowCount || 0,
+        rounds: agentResult.rounds || 1
+      });
+      mainWorkspaceArea.appendChild(techDetails);
+
+      // Smooth scroll to answer
+      qBanner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
     } catch (err) {
       traceView.setError(err.message);
       renderErrorCard(err.message);
@@ -285,13 +339,32 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function handleDirectSqlQuery(conn, sql) {
+    const activeConfig = providerManager.getActiveConfig();
     const execRes = await executeQuery(conn, sql, [activeDataset.tableName]);
-    const sqlCard = renderSqlCard(sql, activeDataset.tableName);
-    mainWorkspaceArea.appendChild(sqlCard);
+
+    const qBanner = document.createElement('div');
+    qBanner.className = 'question-banner';
+    qBanner.innerHTML = `
+      <span style="color: var(--accent); font-weight: 600;">SQL:</span>
+      <span class="mono">${escapeHTML(sql)}</span>
+    `;
+    mainWorkspaceArea.appendChild(qBanner);
 
     if (execRes.success) {
       const resultsTable = renderResultsTable(execRes);
       mainWorkspaceArea.appendChild(resultsTable);
+
+      const sqlAccordion = renderSqlCard(sql, activeDataset.tableName);
+      mainWorkspaceArea.appendChild(sqlAccordion);
+
+      const techDetails = renderTechnicalDetailsCard({
+        provider: 'Direct SQL',
+        model: 'None (Local DuckDB)',
+        executionTimeMs: execRes.executionTimeMs || 0,
+        totalRowCount: execRes.totalRowCount || 0,
+        rounds: 1
+      });
+      mainWorkspaceArea.appendChild(techDetails);
     } else {
       renderErrorCard(execRes.error);
     }
@@ -302,10 +375,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     errorCard.className = 'error-card';
     errorCard.innerHTML = `
       <div class="error-hdr">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 10a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm1-4a1 1 0 0 1-2 0V4a1 1 0 0 1 2 0v3z"/>
-        </svg>
-        Execution Notice
+        <span>⚠ Execution Notice</span>
       </div>
       <div class="error-body">${escapeHTML(message)}</div>
     `;
@@ -316,10 +386,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     isRunning = false;
     runBtn.disabled = false;
     runBtn.innerHTML = `
-      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
         <path d="M4 2.5v11l9-5.5-9-5.5z"/>
       </svg>
-      Run analysis
+      <span>Run</span>
     `;
   }
 });
