@@ -219,49 +219,127 @@ export function generateDatasetSuggestions(dataset: Dataset): string[] {
 /**
  * Checks if a natural language question is semantically out of bounds of the dataset.
  */
-export function isQueryOutOfScope(question: string, dataset: Dataset): { outOfScope: boolean; reason?: string } {
+export function isQueryOutOfScope(
+  question: string,
+  dataset: Dataset
+): { outOfScope: boolean; reason?: string } {
   const q = question.toLowerCase().trim();
-  const cols = dataset.columns.map((c) => c.name.toLowerCase());
+  const cleanQ = q.replace(/[^a-z0-9\s]/g, ' ');
+  const words = cleanQ.split(/\s+/).filter((w) => w.length > 1);
 
-  // General trivia / political / external knowledge indicators
-  const outOfScopePatterns: { pattern: RegExp; reason: string }[] = [
+  // 1. Explicit Out-of-Domain Keywords & Patterns (Memes, Trivia, Politics, General knowledge)
+  const outOfScopeRules: { pattern: RegExp; reason: string }[] = [
     {
-      pattern: /\b(president|prime minister|senator|congress|white house|election|democrat|republican|governor|monarch|ruler|vice president)\b/i,
-      reason: 'This question asks about government leadership, politics, or political figures, which are not recorded in this dataset.',
+      pattern: /\b(meme|memes|viral|trend|trending|slang|brainrot|skibidi|gyatt|rizz|sigma|copypasta|joke|prank|tiktok|youtube|instagram|twitter|reddit|twitch|discord)\b/i,
+      reason: 'This question asks about internet culture, memes, social media trends, or slang, which are not present in this dataset.',
     },
     {
-      pattern: /\b(weather|temperature|forecast|rain|climate|humidity|snow)\b/i,
+      pattern: /\b(president|prime minister|senator|congress|white house|election|democrat|republican|governor|monarch|ruler|vice president|parliament|government)\b/i,
+      reason: 'This question asks about political leadership or government affairs, which are not recorded in this dataset.',
+    },
+    {
+      pattern: /\b(weather|temperature|forecast|rain|climate|humidity|snow|sunny|storm|monsoon)\b/i,
       reason: 'This question requests meteorological or weather measurements, which are not present in this dataset.',
     },
     {
-      pattern: /\b(capital of|population of|continent|mount everest|ocean|river)\b/i,
-      reason: 'This question requests general geographic facts or world knowledge not stored in this dataset.',
+      pattern: /\b(capital of|population of|continent|mount everest|ocean|river|geography|planet|solar system)\b/i,
+      reason: 'This question requests general geographic or astronomical facts not stored in this dataset.',
     },
     {
-      pattern: /\b(super bowl|world cup|olympics|nba|fifa|ipl|tournament|championship)\b/i,
-      reason: 'This question asks for sports tournament results and statistics, which are outside the scope of this dataset.',
+      pattern: /\b(super bowl|world cup|olympics|nba|fifa|ipl|tournament|championship|premier league|formula 1|f1|messi|ronaldo)\b/i,
+      reason: 'This question asks about sports competitions, athletes, or tournament scores, which are outside this dataset.',
     },
     {
-      pattern: /\b(movie|actor|actress|director|song|singer|celebrity|album|box office|grammy|oscar)\b/i,
-      reason: 'This question asks about entertainment, celebrities, or media facts, which are not tracked in this analytical table.',
+      pattern: /\b(movie|actor|actress|director|song|singer|celebrity|album|box office|grammy|oscar|hollywood|bollywood|netflix|film|cinema)\b/i,
+      reason: 'This question asks about entertainment, celebrities, or pop culture media, which are not tracked in this table.',
     },
     {
-      pattern: /\b(recipe|ingredients|cooking|calories|food|baking)\b/i,
+      pattern: /\b(recipe|ingredients|cooking|calories|food|baking|restaurant|cuisine)\b/i,
       reason: 'This question requests culinary recipes or nutritional data not present in this dataset.',
     },
     {
-      pattern: /^(who is|who was|who are|what is the meaning of life|tell me a joke)/i,
-      reason: 'This question requests general world trivia or conversational assistance rather than data analysis on the loaded table.',
+      pattern: /\b(quantum|relativity|gravity|photosynthesis|biology|chemistry|physics|math theorem|calculus)\b/i,
+      reason: 'This question requests general scientific or mathematical trivia not related to this dataset.',
+    },
+    {
+      pattern: /^(who is|who was|who are|what is the meaning of|what does .* mean|what is .* about|explain .* to me|tell me about .*|how do i|why do|why is|write a poem|translate)/i,
+      reason: 'This question requests general world knowledge, trivia, or conversational assistance rather than data analysis on the active table.',
     },
   ];
 
-  for (const { pattern, reason } of outOfScopePatterns) {
+  for (const { pattern, reason } of outOfScopeRules) {
     if (pattern.test(q)) {
       return {
         outOfScope: true,
-        reason: `${reason} The active dataset "${dataset.name}" records ${cols.slice(0, 5).join(', ')}.`,
+        reason: `${reason} Active dataset "${dataset.name}" focuses on ${dataset.columns.map((c) => c.name).slice(0, 5).join(', ')}.`,
       };
     }
+  }
+
+  // 2. Analytical & Exploration Intent Words
+  const validExplorationTokens = new Set([
+    'table', 'dataset', 'data', 'row', 'rows', 'record', 'records', 'column', 'columns', 'schema',
+    'overview', 'summary', 'summarize', 'all', 'sample', 'first', 'last', 'preview',
+    'top', 'bottom', 'highest', 'lowest', 'max', 'maximum', 'min', 'minimum',
+    'average', 'avg', 'sum', 'total', 'count', 'how many', 'distribution', 'breakdown',
+    'group', 'grouped', 'compare', 'filter', 'where', 'order', 'sort', 'list', 'show', 'find', 'which',
+    'percentage', 'ratio', 'rate', 'metric', 'metrics'
+  ]);
+
+  // Extract column names, parts of column names, and sample values from dataset
+  const datasetTokens = new Set<string>();
+  dataset.columns.forEach((c) => {
+    const name = c.name.toLowerCase();
+    datasetTokens.add(name);
+    name.split(/[^a-z0-9]/).forEach((part) => {
+      if (part.length > 2) datasetTokens.add(part);
+    });
+
+    if (c.sampleValues) {
+      c.sampleValues.forEach((val) => {
+        if (typeof val === 'string' && val.length < 30) {
+          val.toLowerCase().split(/\s+/).forEach((vp) => {
+            if (vp.length > 2) datasetTokens.add(vp);
+          });
+        }
+      });
+    }
+  });
+
+  // Common analytical synonyms for SaaS & Business datasets
+  const saasSynonyms = [
+    'customer', 'customers', 'client', 'clients', 'company', 'companies', 'account', 'accounts',
+    'mrr', 'revenue', 'money', 'dollar', 'dollars', 'income', 'sales', 'profit', 'arr', 'pricing', 'price',
+    'churn', 'churned', 'lost', 'cancel', 'cancelled', 'canceling', 'retention', 'attrition', 'risk', 'at-risk',
+    'plan', 'plans', 'tier', 'tiers', 'subscription', 'subscriptions', 'package',
+    'user', 'users', 'seat', 'seats', 'active', 'inactive', 'license', 'licenses',
+    'nps', 'score', 'scores', 'rating', 'feedback', 'satisfaction',
+    'ticket', 'tickets', 'support', 'issue', 'issues', 'complaint', 'complaints',
+    'industry', 'industries', 'sector', 'sectors', 'vertical', 'verticals',
+    'signup', 'signups', 'date', 'dates', 'month', 'months', 'year', 'years', 'cohort'
+  ];
+  saasSynonyms.forEach((s) => datasetTokens.add(s));
+
+  // Check if at least ONE meaningful word in the question matches the dataset tokens or analytical exploration words
+  let hasDatasetMatch = false;
+  let hasExplorationMatch = false;
+
+  for (const word of words) {
+    if (datasetTokens.has(word)) {
+      hasDatasetMatch = true;
+      break;
+    }
+    if (validExplorationTokens.has(word)) {
+      hasExplorationMatch = true;
+    }
+  }
+
+  // If the query has neither a dataset column/metric match nor a clear generic table exploration intent:
+  if (!hasDatasetMatch && !hasExplorationMatch) {
+    return {
+      outOfScope: true,
+      reason: `No relevant metrics, columns, or dimensions matching "${question}" were found in "${dataset.name}". Please ask an analytical question referring to the available columns.`,
+    };
   }
 
   return { outOfScope: false };
