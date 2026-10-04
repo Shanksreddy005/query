@@ -24,8 +24,8 @@ const PROVIDERS: {
     name: 'Google Gemini',
     badge: 'Recommended · Free Tier Available',
     models: [
-      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Fast & High Intelligence' },
-      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Next-Gen Flash' },
+      { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tag: 'Fast & High Intelligence (Recommended)' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', tag: 'Legacy Flash' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tag: 'Deep Analytical Reasoning' },
     ],
     keyPrefix: 'AIzaSy...',
@@ -67,7 +67,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 }) => {
   const [provider, setProvider] = useState<AiProvider>(config.provider || 'gemini');
   const [key, setKey] = useState<string>(config.key || '');
-  const [model, setModel] = useState<string>(config.model || 'gemini-2.5-flash');
+  const [model, setModel] = useState<string>(config.model || 'gemini-3.8-flash');
   const [showKey, setShowKey] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState<string>('');

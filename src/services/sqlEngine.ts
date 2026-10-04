@@ -65,8 +65,8 @@ export async function registerDatasetInSql(dataset: Dataset): Promise<void> {
     const virtualFilename = `data_${Date.now()}.json`;
     await db.registerFileText(virtualFilename, jsonStr);
 
-    await conn.query(`CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${virtualFilename}')`);
-    await conn.query(`CREATE TABLE "dataset" AS SELECT * FROM "${tableName}"`);
+    await conn.query(`CREATE OR REPLACE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${virtualFilename}')`);
+    await conn.query(`CREATE OR REPLACE TABLE "dataset" AS SELECT * FROM "${tableName}"`);
   } catch (err: any) {
     console.error('Failed to register dataset in DuckDB:', err);
   }

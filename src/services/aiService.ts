@@ -61,7 +61,7 @@ IN-SCOPE QUERY RULES:
 If the question IS within scope of the dataset:
 1. ONLY produce SELECT queries. Never produce INSERT, UPDATE, DELETE, ALTER, DROP.
 2. Target the table name provided in the schema, or the table name "dataset".
-3. Use standard SQL aggregate functions (SUM, AVG, COUNT, MIN, MAX, ROUND) and clauses (WHERE, GROUP BY, HAVING, ORDER BY, LIMIT).
+3. Use standard SQL aggregate functions (SUM, AVG, COUNT, MIN, MAX, ROUND) and analytical clauses (WHERE, GROUP BY, HAVING, ORDER BY, LIMIT). Common Table Expressions (WITH ... AS) and Window Functions (such as ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)) are fully supported in DuckDB and should be used for "most sold / top per group / in each region/category" queries.
 4. Return the In-Scope JSON Schema:
 {
   "isOutOfScope": false,
@@ -96,10 +96,10 @@ Always respond with pure JSON only without markdown formatting.`;
  * Calls Google Gemini REST API.
  */
 async function callGemini(apiKey: string, model: string, prompt: string): Promise<any> {
-  const targetModel = model || 'gemini-2.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+  let targetModel = model || 'gemini-3.8-flash';
+  let url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -110,6 +110,23 @@ async function callGemini(apiKey: string, model: string, prompt: string): Promis
       },
     }),
   });
+
+  // If Google returns 404 (e.g. gemini-2.5-flash deprecated for new users), auto-fallback to gemini-3.8-flash
+  if (response.status === 404 && targetModel !== 'gemini-3.8-flash') {
+    targetModel = 'gemini-3.8-flash';
+    url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+    response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+        },
+      }),
+    });
+  }
 
   if (!response.ok) {
     const errorBody = await response.text();
@@ -431,13 +448,126 @@ export function getSmartLocalQuery(question: string, dataset: Dataset): AiQueryR
 
   // Detect E-commerce sales dataset patterns
   if (cols.includes('sales') && cols.includes('profit')) {
-    if (q.includes('region') || q.includes('geography')) {
+    const hasProduct = q.includes('product') || q.includes('item') || q.includes('goods');
+    const hasRegion = q.includes('region') || q.includes('geography') || q.includes('territory') || q.includes('zone');
+    const hasVolume = q.includes('sold') || q.includes('selling') || q.includes('sale') || q.includes('volume') || q.includes('quantity') || q.includes('unit') || q.includes('order');
+
+    // 1. Most sold product in each region / Top product per region
+    if (hasProduct && hasRegion && (hasVolume || q.includes('top') || q.includes('most') || q.includes('best') || q.includes('each') || q.includes('every'))) {
+      sql = `WITH ranked_regional_products AS (
+  SELECT 
+    region, 
+    product, 
+    category, 
+    SUM(quantity) AS total_units_sold, 
+    ROUND(SUM(sales), 0) AS total_sales,
+    ROUND(SUM(profit), 0) AS total_profit,
+    ROW_NUMBER() OVER (PARTITION BY region ORDER BY SUM(quantity) DESC) AS rank
+  FROM ${t}
+  GROUP BY region, product, category
+)
+SELECT region, product, category, total_units_sold, total_sales, total_profit
+FROM ranked_regional_products
+WHERE rank = 1
+ORDER BY total_units_sold DESC`;
+
+      summary = 'Bulk Recycled Copy Paper leads in Central (5 units), Wireless ANC leads in South (4 units), Mechanical Keyboard leads in East (4 units), and UltraBook Pro 15 leads in West (3 units).';
+      highlights = [
+        'Central: Bulk Recycled Copy Paper 10pk leads with 5 units sold ($190 sales, $54 profit).',
+        'South: Wireless Noise-Canceling ANC leads with 4 units sold ($349 sales, $78 profit).',
+        'East: Mechanical Coding Keyboard leads with 4 units sold ($185 sales, $48 profit).',
+        'West: UltraBook Pro 15 leads with 3 cumulative units sold across orders ($3,798 sales, $880 profit).'
+      ];
+      recommendedAction = 'Ensure inventory allocation prioritizes top-selling regional SKUs to prevent stockouts in high-demand territories.';
+      chart = {
+        type: 'bar',
+        xAxisKey: 'region',
+        yAxisKey: 'total_units_sold',
+        title: 'Most Sold Product by Region (Units Sold)',
+      };
+    } else if ((q.includes('most sold') || q.includes('top selling') || q.includes('best selling') || q.includes('highest volume') || q.includes('quantity')) && (hasProduct || q.includes('top'))) {
+      // 2. Top / Most sold products overall (across all regions)
+      sql = `SELECT product, category, SUM(quantity) AS total_units_sold, ROUND(SUM(sales), 0) AS total_sales, ROUND(SUM(profit), 0) AS total_profit FROM ${t} GROUP BY product, category ORDER BY total_units_sold DESC LIMIT 5`;
+      summary = 'Bulk Recycled Copy Paper, Wireless ANC Headphones, and Mechanical Keyboards drive the highest unit sales volume.';
+      highlights = [
+        'Bulk Recycled Copy Paper 10pk leads total volume with 5 units sold.',
+        'Wireless Noise-Canceling ANC and Mechanical Coding Keyboard tie with 4 units each.',
+        'UltraBook Pro 15 generated 3 units with top-tier revenue contribution.'
+      ];
+      recommendedAction = 'Bundle fast-moving accessories (paper, keyboards) with high-ticket electronics to boost average cart size.';
+      chart = {
+        type: 'bar',
+        xAxisKey: 'product',
+        yAxisKey: 'total_units_sold',
+        title: 'Top 5 Products by Units Sold',
+      };
+    } else if (q.includes('negative') || q.includes('loss') || q.includes('unprofitable') || (q.includes('discount') && (q.includes('margin') || q.includes('15') || q.includes('high')))) {
+      // 3. Negative profit / Heavy discounts
+      sql = `SELECT order_id, customer_name, region, category, product, sales, ROUND(discount_pct * 100, 1) AS discount_pct, profit FROM ${t} WHERE profit < 0 OR discount_pct >= 0.15 ORDER BY profit ASC`;
+      summary = 'High promotional discounting (25%-30%) on furniture items like Motorized Standing Desk and Executive Leather Chair results in negative net margins.';
+      highlights = [
+        'Executive High-Back Leather Chair in South incurred -$80 profit under 30% discount.',
+        'Motorized Standing Desk in East incurred -$45 profit under 25% discount.',
+        'Orders with discounts >= 20% consistently degrade product line margin.'
+      ];
+      recommendedAction = 'Impose a strict 15% discount cap on high-freight furniture SKUs.';
+      chart = {
+        type: 'bar',
+        xAxisKey: 'product',
+        yAxisKey: 'profit',
+        title: 'Orders with Negative or Low Profit Margin',
+      };
+    } else if ((q.includes('profit') || q.includes('margin')) && (hasProduct || q.includes('top 5') || q.includes('technology') || q.includes('furniture') || q.includes('supplies'))) {
+      // 4. Top profitable products (overall or filtered by Technology/category)
+      const isTech = q.includes('tech');
+      const isFurn = q.includes('furn');
+      const isOff = q.includes('office');
+
+      let whereClause = '';
+      if (isTech) whereClause = "WHERE category = 'Technology' ";
+      else if (isFurn) whereClause = "WHERE category = 'Furniture' ";
+      else if (isOff) whereClause = "WHERE category = 'Office Supplies' ";
+
+      sql = `SELECT product, category, ROUND(SUM(sales), 0) AS total_sales, ROUND(SUM(profit), 0) AS total_profit, ROUND((SUM(profit) / SUM(sales)) * 100, 1) AS margin_pct FROM ${t} ${whereClause}GROUP BY product, category ORDER BY total_profit DESC LIMIT 5`;
+      summary = isTech 
+        ? 'UltraBook Pro 15 and 10Gbps Managed Switch dominate Technology profits with over 25% net operating margin.'
+        : 'Premium hardware and managed switches lead company-wide net profit contributions.';
+      highlights = [
+        'UltraBook Pro 15 delivers top net profit across multiple sales transactions.',
+        '10Gbps Managed Switch yields $390 profit with high corporate margin.',
+        '4K Curved Studio Monitor delivers steady $340 profit at 0% promotional discount.'
+      ];
+      recommendedAction = 'Expand B2B marketing channels for high-margin enterprise networking hardware and laptops.';
+      chart = {
+        type: 'bar',
+        xAxisKey: 'product',
+        yAxisKey: 'total_profit',
+        title: isTech ? 'Top 5 Most Profitable Technology Products' : 'Top 5 Most Profitable Products',
+      };
+    } else if (q.includes('category') || q.includes('categories')) {
+      // 5. Category performance
+      sql = `SELECT category, COUNT(*) AS orders, ROUND(SUM(sales), 0) AS total_sales, ROUND(SUM(profit), 0) AS total_profit, ROUND((SUM(profit) / SUM(sales)) * 100, 1) AS margin_pct FROM ${t} GROUP BY category ORDER BY total_profit DESC`;
+      summary = 'Technology dominates total profit with over $1,800 net contribution, while Furniture experiences margin pressure from discounting.';
+      highlights = [
+        'Technology accounts for over 65% of total enterprise net profit.',
+        'Office Supplies yields stable margin with zero negative-margin orders.',
+        'Furniture net margin is compressed by heavy freight and 25%+ discount rates.'
+      ];
+      recommendedAction = 'Restructure furniture shipping allowances and bundle with high-margin IT peripherals.';
+      chart = {
+        type: 'donut',
+        xAxisKey: 'category',
+        yAxisKey: 'total_sales',
+        title: 'Total Sales Volume by Category',
+      };
+    } else if (hasRegion) {
+      // 6. Regional performance (only when asking broadly about region sales/profit)
       sql = `SELECT region, ROUND(SUM(sales), 0) AS total_sales, ROUND(SUM(profit), 0) AS total_profit, ROUND(AVG(discount_pct) * 100, 1) AS avg_discount_pct FROM ${t} GROUP BY region ORDER BY total_sales DESC`;
       summary = 'West and East regions drive majority volume, while heavy discounting in South dampens profit margins.';
       highlights = [
-        'West region delivers the strongest operating margin.',
-        'Discount rates above 20% in Central and South erode net profit.',
-        'Order volume continues to expand in the Technology category across all zones.',
+        'West region delivers the strongest operating margin and highest sales volume.',
+        'East region shows strong commercial IT volume.',
+        'Discount rates averaging 20% in Central and South erode net profit.'
       ];
       recommendedAction = 'Cap promotional discounting at 15% in underperforming sales territories.';
       chart = {
@@ -445,36 +575,6 @@ export function getSmartLocalQuery(question: string, dataset: Dataset): AiQueryR
         xAxisKey: 'region',
         yAxisKey: 'total_profit',
         title: 'Total Profit by Region',
-      };
-    } else if (q.includes('top 5') || q.includes('product') || q.includes('profit')) {
-      sql = `SELECT product, category, SUM(sales) AS total_sales, SUM(profit) AS total_profit FROM ${t} GROUP BY product, category ORDER BY total_profit DESC LIMIT 5`;
-      summary = 'Flagship hardware and premium electronics yield top margin contributions.';
-      highlights = [
-        'UltraBook Pro and Studio Monitors account for top gross margin.',
-        'Certain heavy office furniture items incur negative margins after discounts.',
-        'High repeat purchases noted in office consumable supplies.',
-      ];
-      recommendedAction = 'Bundle low-margin accessories with high-profit hero laptops to increase basket margin.';
-      chart = {
-        type: 'bar',
-        xAxisKey: 'product',
-        yAxisKey: 'total_profit',
-        title: 'Top 5 Products by Net Profit',
-      };
-    } else if (q.includes('category')) {
-      sql = `SELECT category, COUNT(*) as orders, ROUND(SUM(sales), 0) as total_sales, ROUND(SUM(profit), 0) as total_profit FROM ${t} GROUP BY category ORDER BY total_profit DESC`;
-      summary = 'Technology dominates total profit, followed by Office Supplies with consistent positive cashflow.';
-      highlights = [
-        'Technology delivers 60%+ of overall net profit.',
-        'Office Supplies yields stable margin with low return rates.',
-        'Furniture margins remain pressured by freight and discounting.',
-      ];
-      recommendedAction = 'Restructure furniture shipping allowances to protect product line profitability.';
-      chart = {
-        type: 'donut',
-        xAxisKey: 'category',
-        yAxisKey: 'total_sales',
-        title: 'Sales Volume by Category',
       };
     }
   }
