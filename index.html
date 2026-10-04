@@ -1,106 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>QueryMind — AI-Powered Data Analyst (DuckDB-WASM + BYOK)</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css">
-</head>
-<body>
-  <div class="app">
-    <!-- LEFT SIDEBAR (Linear Style) -->
-    <aside class="sidebar" id="sidebarEl">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">
-          <span class="brand-icon">◈</span>
-          <span>QueryMind</span>
-        </div>
-      </div>
-
-      <div class="sidebar-content">
-        <!-- DATASET SUMMARY SLOT (when loaded) -->
-        <div id="sidebarDatasetSlot" class="sb-section" style="display: none;"></div>
-
-        <!-- DYNAMIC SCHEMA EXPLORER -->
-        <div id="sidebarSchema" class="sb-section"></div>
-
-        <!-- RECENT QUERY HISTORY -->
-        <div id="sidebarHistory" class="sb-section"></div>
-
-        <!-- PRIVACY INDICATOR (at bottom) -->
-        <div id="privacyIndicatorSlot" class="sidebar-privacy"></div>
-      </div>
-    </aside>
-
-    <!-- MAIN WORKSPACE (Perplexity × Hex × Vercel) -->
-    <main class="main">
-      <header class="topbar">
-        <div class="topbar-left">
-          <button class="btn-icon mobile-toggle" id="mobileMenuBtn" aria-label="Toggle Menu">
-            ☰
-          </button>
-          <a class="topbar-brand" href="#">
-            <span class="brand-icon">◈</span>
-            <span>QueryMind</span>
-          </a>
-          <span class="topbar-divider"></span>
-          <div id="topbarDatasetBadge" class="dataset-badge-top" style="display: none;">
-            <span class="dot"></span>
-            <span id="topbarDatasetText">customers.csv</span>
-          </div>
-        </div>
-        <div class="topbar-right">
-          <!-- Key controls injected here by ApiKeyModal: Provider pill & Key Settings -->
-        </div>
-      </header>
-
-      <div class="content-container">
-        <!-- CSV UPLOADER SLOT (Dropzone) -->
-        <div id="uploaderSlot"></div>
-
-        <!-- QUERY HERO & INPUT WRAPPER (Shown when dataset loaded) -->
-        <div id="queryWorkspaceWrap" class="query-container" style="display: none;">
-          <div class="hero-state" id="heroState">
-            <h2 class="hero-title">Ask your data</h2>
-            <p class="hero-subtitle">What would you like to know?</p>
-          </div>
-
-          <div class="query-card">
-            <textarea
-              id="qi"
-              class="query-textarea"
-              rows="2"
-              placeholder="Ask a question about your dataset in plain English..."
-              disabled
-              autocomplete="off"
-              spellcheck="false"
-            ></textarea>
-            <div class="query-card-footer">
-              <span class="query-shortcuts-hint">
-                <kbd>⌘↵</kbd> or <kbd>Ctrl+Enter</kbd> to run
-              </span>
-              <button id="runBtn" class="btn btn-primary" disabled>
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M4 2.5v11l9-5.5-9-5.5z"/>
-                </svg>
-                <span>Run</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="suggestions-pills" id="exampleChips"></div>
-        </div>
-
-        <!-- DYNAMIC RESULTS AREA (AI Stream, Insight, KPIs, Table, SQL Accordion, Tech Details) -->
-        <div id="area" class="results-stack"></div>
-      </div>
-    </main>
-  </div>
-
-  <!-- SCRIPT ENTRY POINT -->
-  <script type="module" src="/src/main.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>QueryMind — AI-Powered Natural Language Analytics (BYOK & Zero Backend)</title>
+    <meta name="description" content="Ask questions in plain English about your datasets. Get instant SQL, verified results, and actionable insights with 100% browser-native privacy and Bring-Your-Own-Key." />
+    <meta property="og:title" content="QueryMind — AI-Powered Natural Language Analytics" />
+    <meta property="og:description" content="Browser-native natural language to SQL analytics engine with privacy-first BYOK and zero backend data retention." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M12,0 H26 A3,3 0 0 1 29,3 V26 A3,3 0 0 1 26,29 H3 A3,3 0 0 1 0,26 V12 A12,12 0 0 1 12,0 Z' fill='%23141418'/%3E%3Cpath d='M38,0 H52 A12,12 0 0 1 64,12 V26 A3,3 0 0 1 61,29 H38 A3,3 0 0 1 35,26 V3 A3,3 0 0 1 38,0 Z' fill='%23141418'/%3E%3Cpath d='M3,35 H26 A3,3 0 0 1 29,38 V61 A3,3 0 0 1 26,64 H12 A12,12 0 0 1 0,52 V38 A3,3 0 0 1 3,35 Z' fill='%23141418'/%3E%3Cpath d='M38,35 H61 A3,3 0 0 1 64,38 V64 H38 A3,3 0 0 1 35,61 V38 A3,3 0 0 1 38,35 Z' fill='%235B4BE8'/%3E%3C/svg%3E" />
+  </head>
+  <body class="bg-[#0f1117] text-[#e8eaf0] antialiased selection:bg-[#5B4BE8]/30 selection:text-white min-h-screen">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
