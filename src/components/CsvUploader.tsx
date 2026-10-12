@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import Papa from 'papaparse';
-import { UploadCloud, FileText, Database, Sparkles, Check, AlertCircle } from 'lucide-react';
+import { UploadCloud, Database, AlertCircle } from 'lucide-react';
 import { Dataset } from '../types';
 import { inferDatasetSchema, PREBUILT_DATASETS } from '../services/sampleData';
 
@@ -101,10 +101,8 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({ onDatasetLoaded, isDar
   };
 
   const borderClass = isDragging
-    ? 'border-[#5B4BE8] bg-[#5B4BE8]/10'
-    : isDarkMode
-    ? 'border-[#222838] bg-[#12151f]/60 hover:border-[#38425d] hover:bg-[#151926]'
-    : 'border-slate-300 bg-slate-50/80 hover:border-indigo-400 hover:bg-slate-100/80';
+    ? 'border-accent bg-badge-accent-bg'
+    : 'border-border-strong bg-surface-secondary/40 hover:border-accent hover:bg-surface-secondary/70';
 
   return (
     <div className="w-full space-y-4">
@@ -114,7 +112,7 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({ onDatasetLoaded, isDar
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className={`relative border-2 border-dashed rounded-2xl p-8 transition-all cursor-pointer text-center group ${borderClass}`}
+        className={`relative border-2 border-dashed rounded-2xl p-8 transition-all duration-fast cursor-pointer text-center group ${borderClass}`}
       >
         <input
           ref={fileInputRef}
@@ -129,26 +127,26 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({ onDatasetLoaded, isDar
         />
 
         <div className="flex flex-col items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-[#5B4BE8]/10 text-[#5B4BE8] dark:text-[#8B7FF5] flex items-center justify-center transition-transform group-hover:scale-110 duration-200">
+          <div className="w-14 h-14 rounded-2xl bg-badge-accent-bg text-badge-accent-fg border border-badge-accent-border flex items-center justify-center transition-transform duration-fast group-hover:scale-105 shadow-2xs">
             {isLoading ? (
               <div className="w-6 h-6 border-2 border-current border-t-transparent rounded-full animate-spin" />
             ) : (
-              <UploadCloud className="w-7 h-7" />
+              <UploadCloud className="w-7 h-7 text-accent" />
             )}
           </div>
 
           <div>
-            <p className="text-sm font-semibold tracking-tight">
-              Drop your CSV, TSV, or JSON dataset here, or <span className="text-[#5B4BE8] dark:text-[#8B7FF5] underline">browse</span>
+            <p className="text-sm font-semibold tracking-tight text-text-primary">
+              Drop your CSV, TSV, or JSON dataset here, or <span className="text-accent underline">browse</span>
             </p>
-            <p className="text-xs text-slate-400 mt-1">
-              100% private · Browser-native DuckDB/Alasql · No data ever leaves your device
+            <p className="text-xs text-text-muted mt-1 leading-relaxed">
+              100% private · Browser-native DuckDB engine · No data ever leaves your device
             </p>
           </div>
         </div>
 
         {error && (
-          <div className="mt-4 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center justify-center gap-2">
+          <div className="mt-4 p-2.5 rounded-lg bg-badge-error-bg border border-badge-error-border text-badge-error-fg text-xs flex items-center justify-center gap-2 shadow-2xs">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />
             <span>{error}</span>
           </div>
@@ -156,9 +154,9 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({ onDatasetLoaded, isDar
       </div>
 
       {/* Instant Demo Datasets Picker */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl border border-inherit bg-[#141722]/40 dark:bg-[#12151e]">
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <Database className="w-4 h-4 text-[#8B7FF5]" />
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl border border-border-subtle bg-surface-secondary/60">
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <Database className="w-4 h-4 text-accent" />
           <span>Don't have a dataset ready? Explore instant demo datasets:</span>
         </div>
 
@@ -166,27 +164,19 @@ export const CsvUploader: React.FC<CsvUploaderProps> = ({ onDatasetLoaded, isDar
           <button
             type="button"
             onClick={() => loadSample('saas')}
-            className={`flex-1 sm:flex-initial text-xs font-medium px-3 py-1.5 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
-              isDarkMode
-                ? 'border-[#262c3e] bg-[#181c28] text-slate-200 hover:border-[#5B4BE8] hover:text-white'
-                : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-500 hover:text-indigo-600'
-            }`}
+            className="btn-interactive flex-1 sm:flex-initial text-xs font-medium px-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center justify-center gap-1.5 shadow-2xs"
           >
             <span>SaaS Retention & MRR</span>
-            <span className="text-[10px] font-mono text-slate-400">(25 rows)</span>
+            <span className="text-[10px] font-mono text-text-muted">(25 rows)</span>
           </button>
 
           <button
             type="button"
             onClick={() => loadSample('ecommerce')}
-            className={`flex-1 sm:flex-initial text-xs font-medium px-3 py-1.5 rounded-lg border transition-all flex items-center justify-center gap-1.5 ${
-              isDarkMode
-                ? 'border-[#262c3e] bg-[#181c28] text-slate-200 hover:border-[#5B4BE8] hover:text-white'
-                : 'border-slate-300 bg-white text-slate-700 hover:border-indigo-500 hover:text-indigo-600'
-            }`}
+            className="btn-interactive flex-1 sm:flex-initial text-xs font-medium px-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center justify-center gap-1.5 shadow-2xs"
           >
             <span>E-Commerce Profitability</span>
-            <span className="text-[10px] font-mono text-slate-400">(15 rows)</span>
+            <span className="text-[10px] font-mono text-text-muted">(15 rows)</span>
           </button>
         </div>
       </div>

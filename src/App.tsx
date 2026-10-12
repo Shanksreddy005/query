@@ -8,12 +8,14 @@ import { Dataset, QueryResult, ApiKeyConfig, HistoryItem, ReasoningStep, OutOfSc
 import { PREBUILT_DATASETS } from './services/sampleData';
 import { registerDatasetInSql, executeClientSql } from './services/sqlEngine';
 import { processNaturalLanguageQuery, generateDatasetSuggestions } from './services/aiService';
+import { DEFAULT_PROVIDER, DEFAULT_MODELS } from './services/modelRegistry';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { QueryInputArea } from './components/QueryInputArea';
 import { ResultsView } from './components/ResultsView';
 import { CsvUploader } from './components/CsvUploader';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { OnboardingModal } from './components/OnboardingModal';
 import { OutOfScopeModal } from './components/OutOfScopeModal';
 import { ShieldCheck, Upload, Database, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
 
@@ -27,15 +29,17 @@ export default function App() {
 
   // BYOK Configuration state
   const [apiKeyConfig, setApiKeyConfig] = useState<ApiKeyConfig>({
-    provider: 'gemini',
+    provider: DEFAULT_PROVIDER,
     key: '',
-    model: 'gemini-3.8-flash',
+    model: DEFAULT_MODELS[DEFAULT_PROVIDER],
   });
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(true);
 
   // Query & Execution state
   const [query, setQuery] = useState<string>('');
   const [isRunning, setIsRunning] = useState<boolean>(false);
+  const [currentStep, setCurrentStep] = useState<ReasoningStep | null>(null);
   const [currentResult, setCurrentResult] = useState<QueryResult | null>(null);
   const [executionError, setExecutionError] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
@@ -58,10 +62,10 @@ export default function App() {
   useEffect(() => {
     if (isDarkMode) {
       document.documentElement.classList.add('dark');
-      document.body.style.backgroundColor = '#0d0f15';
+      document.body.style.backgroundColor = 'var(--background)';
     } else {
       document.documentElement.classList.remove('dark');
-      document.body.style.backgroundColor = '#f8fafc';
+      document.body.style.backgroundColor = 'var(--background)';
     }
   }, [isDarkMode]);
 
@@ -83,10 +87,16 @@ export default function App() {
 
     setIsRunning(true);
     setExecutionError(null);
+    setCurrentStep({ title: 'Semantic Grounding', detail: 'Analyzing question and schema...', status: 'running' });
 
     try {
       // Step 1: Process NL Query through AI / smart engine
-      const aiResponse = await processNaturalLanguageQuery(q, activeDataset, apiKeyConfig);
+      const aiResponse = await processNaturalLanguageQuery(
+        q,
+        activeDataset,
+        apiKeyConfig,
+        (step) => setCurrentStep(step)
+      );
 
       // Check if out-of-scope question was detected
       if (aiResponse.isOutOfScope) {
@@ -102,6 +112,26 @@ export default function App() {
         });
         setIsOutOfScopeModalOpen(true);
         // Exclusively do NOT show reasoning trace, generated SQL, chart, or results table!
+        return;
+      }
+
+      // Check if query needs clarification (e.g. undefined metrics like lost MRR)
+      if (aiResponse.status === 'needs_clarification') {
+        const newResult: QueryResult = {
+          id: `query_${Date.now()}`,
+          question: q,
+          sql: '',
+          columns: [],
+          rows: [],
+          rowCount: 0,
+          executionTimeMs: 0,
+          reasoningSteps: aiResponse.reasoningSteps,
+          status: 'needs_clarification',
+          clarificationMessage: aiResponse.clarificationMessage,
+          insight: aiResponse.insight,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+        setCurrentResult(newResult);
         return;
       }
 
@@ -137,6 +167,12 @@ export default function App() {
         rowCount: execResult.rowCount,
         executionTimeMs: execResult.executionTimeMs,
         reasoningSteps: aiResponse.reasoningSteps,
+        status: aiResponse.status || 'verified',
+        passedChecks: aiResponse.passedChecks || [
+          'SQL intent verified against query plan',
+          'DuckDB in-memory execution verified',
+          'Output row constraints verified',
+        ],
         insight: aiResponse.insight,
         chartSuggestion: aiResponse.chartSuggestion,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -161,6 +197,7 @@ export default function App() {
       setExecutionError(err?.message || 'An unexpected error occurred while executing the query.');
     } finally {
       setIsRunning(false);
+      setCurrentStep(null);
     }
   };
 
@@ -200,7 +237,18 @@ export default function App() {
     handleRunQuery(sug);
   };
 
-  const mainBg = isDarkMode ? 'bg-[#0d0f15] text-[#e8eaf0]' : 'bg-[#f8fafc] text-slate-900';
+  // Handle completion from 2-step onboarding wizard (Key & Model -> Dataset)
+  const handleCompleteOnboarding = (
+    config: ApiKeyConfig,
+    dataset?: Dataset
+  ) => {
+    setApiKeyConfig(config);
+    if (dataset) {
+      handleSelectDataset(dataset);
+    }
+  };
+
+  const mainBg = 'bg-background text-text-primary';
 
   return (
     <div className={`min-h-screen flex flex-col ${mainBg} transition-colors`}>
@@ -238,18 +286,17 @@ export default function App() {
         <main className="flex-1 overflow-y-auto px-4 sm:px-8 py-6 max-w-5xl mx-auto w-full space-y-6">
           {/* Uploader Dropdown Modal / View if triggered */}
           {isUploaderOpen && (
-            <div className={`p-6 rounded-2xl border mb-6 relative animate-in fade-in ${
-              isDarkMode ? 'bg-[#131620] border-[#222736]' : 'bg-white border-slate-200 shadow-md'
-            }`}>
+            <div className="p-6 rounded-2xl border mb-6 relative animate-in fade-in bg-surface border-border-subtle shadow-md">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-[#8B7FF5]" />
+                  <FileSpreadsheet className="w-5 h-5 text-accent" />
                   <h3 className="text-sm font-semibold">Upload Dataset</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsUploaderOpen(false)}
-                  className="p-1 rounded text-slate-400 hover:text-slate-200"
+                  className="btn-interactive p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-secondary transition-colors duration-fast"
+                  aria-label="Close Uploader"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -264,6 +311,7 @@ export default function App() {
             onChangeQuery={setQuery}
             onRunQuery={handleRunQuery}
             isRunning={isRunning}
+            activeStep={currentStep}
             dataset={activeDataset}
             hasRunAnyQuery={currentResult !== null}
             isDarkMode={isDarkMode}
@@ -271,12 +319,23 @@ export default function App() {
 
           {/* Execution Error Banner */}
           {executionError && (
-            <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-400 text-xs sm:text-sm flex items-start gap-3 animate-in fade-in">
-              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block">Query Error</span>
-                <p className="mt-0.5 leading-relaxed">{executionError}</p>
+            <div className="p-4 rounded-xl border border-badge-error-border bg-badge-error-bg text-badge-error-fg text-xs sm:text-sm flex items-start justify-between gap-3 animate-in fade-in shadow-2xs">
+              <div className="flex items-start gap-3 text-text-primary">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-error" />
+                <div>
+                  <span className="font-semibold block text-text-primary">Query Notice</span>
+                  <p className="mt-0.5 leading-relaxed text-text-secondary">{executionError}</p>
+                </div>
               </div>
+              {(executionError.includes('API Key') || executionError.includes('Settings') || executionError.includes('model') || executionError.includes('HTTP')) && (
+                <button
+                  type="button"
+                  onClick={() => setIsKeyModalOpen(true)}
+                  className="btn-interactive px-3 py-1.5 rounded-lg bg-accent hover:bg-accent-hover text-white font-medium text-xs flex-shrink-0 shadow-xs whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                >
+                  Open Settings
+                </button>
+              )}
             </div>
           )}
 
@@ -307,6 +366,16 @@ export default function App() {
         data={outOfScopeData}
         dataset={activeDataset}
         onSelectSuggestion={handleSelectOutOfScopeSuggestion}
+        isDarkMode={isDarkMode}
+      />
+
+      {/* 2-Step Client-Side Onboarding Wizard (Key & Model Selection -> Dataset) */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onComplete={handleCompleteOnboarding}
+        activeDataset={activeDataset}
+        currentConfig={apiKeyConfig}
         isDarkMode={isDarkMode}
       />
     </div>

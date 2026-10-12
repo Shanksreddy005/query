@@ -26,16 +26,38 @@ export interface ReasoningStep {
   timestamp?: number;
 }
 
+export type QueryExecutionStatus =
+  | 'planning'
+  | 'validating_sql'
+  | 'executing'
+  | 'validating_result'
+  | 'verified'
+  | 'needs_clarification'
+  | 'failed';
+
+export interface ValidationCheck {
+  name: string;
+  description: string;
+  passed: boolean;
+  details?: string;
+}
+
 export interface ChartSuggestion {
-  type: 'bar' | 'line' | 'donut' | 'area';
+  type: 'bar' | 'horizontal_bar' | 'line' | 'donut' | 'area';
   xAxisKey: string;
   yAxisKey: string;
   title: string;
+  categoryLabel?: string;
+  metricLabel?: string;
+  metricUnit?: string;
+  isAggregated?: boolean;
+  description?: string;
 }
 
 export interface QueryInsight {
   summary: string;
   highlights: string[];
+  caveats?: string[];
   recommendedAction?: string;
 }
 
@@ -48,6 +70,9 @@ export interface QueryResult {
   rowCount: number;
   executionTimeMs: number;
   reasoningSteps: ReasoningStep[];
+  status?: QueryExecutionStatus;
+  passedChecks?: string[];
+  clarificationMessage?: string;
   insight?: QueryInsight;
   chartSuggestion?: ChartSuggestion;
   error?: string;
@@ -60,7 +85,7 @@ export interface OutOfScopeData {
   suggestedQuestions?: string[];
 }
 
-export type AiProvider = 'gemini' | 'groq' | 'claude' | 'openai';
+export type AiProvider = 'gemini' | 'groq' | 'openai';
 
 export interface ApiKeyConfig {
   provider: AiProvider;
