@@ -189,12 +189,14 @@ export function validateSqlIntent(
       );
     }
 
-    // Check rank filter (e.g. rank = 1 or rank <= N)
+    // Check rank filter (e.g. rank = 1 or rank <= N or rank_idx = 1)
     const hasRankFilter =
       /rank\s*=\s*\d+/i.test(trimmedSql) ||
       /rank\s*<=\s*\d+/i.test(trimmedSql) ||
       /row_num\s*=\s*\d+/i.test(trimmedSql) ||
-      /row_num\s*<=\s*\d+/i.test(trimmedSql);
+      /row_num\s*<=\s*\d+/i.test(trimmedSql) ||
+      /rank_idx\s*=\s*\d+/i.test(trimmedSql) ||
+      /rank_idx\s*<=\s*\d+/i.test(trimmedSql);
     if (!hasRankFilter) {
       errors.push(
         'Intent Validation Error: Outer query must filter on rank (e.g. WHERE rank = 1 or rank <= limit) to return only top items per group.'

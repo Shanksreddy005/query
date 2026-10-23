@@ -52,11 +52,37 @@ export interface ChartSuggestion {
   metricUnit?: string;
   isAggregated?: boolean;
   description?: string;
+  /** Optional: prefix for axis/label values e.g. '$' */
+  valuePrefix?: string;
+  /** Optional: suffix for axis/label values e.g. 'K' or '%' */
+  valueSuffix?: string;
+  /** Optional: 0-based index of the bar/segment to highlight in amber */
+  highlightIndex?: number;
+}
+
+export interface KpiCallout {
+  label: string;
+  value: string;
+  delta?: string;
+  direction?: 'up' | 'down' | 'neutral';
+  context?: string;
 }
 
 export interface QueryInsight {
-  summary: string;
-  highlights: string[];
+  /** Tight 1-sentence quantitative executive summary */
+  executive_summary?: string;
+  /** 2-4 KPI stat cards with actual data values */
+  kpi_callouts?: KpiCallout[];
+  /** Factual data findings with specific numbers */
+  findings?: string[];
+  /** Risk or limitation observations */
+  risks?: string[];
+  /** Concrete recommended action */
+  recommended_action?: string;
+  /** @deprecated use executive_summary */
+  summary?: string;
+  /** @deprecated use findings */
+  highlights?: string[];
   caveats?: string[];
   recommendedAction?: string;
 }

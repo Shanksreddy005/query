@@ -17,6 +17,7 @@ import { CsvUploader } from './components/CsvUploader';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { OutOfScopeModal } from './components/OutOfScopeModal';
+import { TelemetryAuditorModal } from './components/TelemetryAuditorModal';
 import { ShieldCheck, Upload, Database, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
 
 export default function App() {
@@ -35,6 +36,7 @@ export default function App() {
   });
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(true);
+  const [isAuditorOpen, setIsAuditorOpen] = useState<boolean>(false);
 
   // Query & Execution state
   const [query, setQuery] = useState<string>('');
@@ -257,6 +259,7 @@ export default function App() {
         activeDataset={activeDataset}
         onOpenKeyModal={() => setIsKeyModalOpen(true)}
         onOpenUploader={() => setIsUploaderOpen(true)}
+        onOpenAuditor={() => setIsAuditorOpen(true)}
         onToggleMobileSidebar={() => setIsOpenMobileSidebar(!isOpenMobileSidebar)}
         apiKeyConfig={apiKeyConfig}
         isDarkMode={isDarkMode}
@@ -345,6 +348,7 @@ export default function App() {
               result={currentResult}
               isDarkMode={isDarkMode}
               onUpdateSql={handleUpdateSql}
+              onOpenAuditor={() => setIsAuditorOpen(true)}
             />
           )}
         </main>
@@ -378,6 +382,16 @@ export default function App() {
         currentConfig={apiKeyConfig}
         isDarkMode={isDarkMode}
       />
+
+      {/* Telemetry & Privacy Auditor Modal */}
+      <TelemetryAuditorModal
+        isOpen={isAuditorOpen}
+        onClose={() => setIsAuditorOpen(false)}
+        isDarkMode={isDarkMode}
+        datasetName={activeDataset?.name}
+        datasetRowCount={activeDataset?.rowCount}
+      />
     </div>
   );
 }
+

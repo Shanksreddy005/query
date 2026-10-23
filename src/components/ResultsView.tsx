@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { QueryResult } from '../types';
 import { DataChart } from './DataChart';
+import { ExecutiveBriefing } from './ExecutiveBriefing';
+
 import {
   Sparkles,
   CheckCircle2,
@@ -24,12 +26,115 @@ interface ResultsViewProps {
   result: QueryResult;
   isDarkMode: boolean;
   onUpdateSql: (newSql: string) => void;
+  onOpenAuditor?: () => void;
+}
+
+const COLUMN_LABEL_MAP: Record<string, string> = {
+  company_name: 'Company',
+  support_tickets: 'Support Tickets',
+  active_users: 'Active Users',
+  mrr: 'MRR',
+  lost_or_at_risk_mrr: 'Lost / At-Risk MRR',
+  nps_score: 'NPS Score',
+  churn_status: 'Churn Status',
+  plan_tier: 'Plan Tier',
+  customer_id: 'Customer ID',
+  customer_name: 'Customer Name',
+  order_id: 'Order ID',
+  order_date: 'Order Date',
+  discount_pct: 'Discount',
+  signup_date: 'Signup Date',
+  total_mrr: 'Total MRR',
+  avg_mrr: 'Avg MRR',
+  customer_count: 'Customer Count',
+  total_active_users: 'Total Users',
+  total_sales: 'Total Sales',
+  total_profit: 'Total Profit',
+  profit_margin: 'Profit Margin',
+  industry: 'Industry',
+  region: 'Region',
+  category: 'Category',
+  product: 'Product',
+  quantity: 'Quantity',
+  sales: 'Sales',
+  profit: 'Profit',
+};
+
+function prettifyColumnHeader(col: string): string {
+  const lower = col.toLowerCase().trim();
+  if (COLUMN_LABEL_MAP[lower]) {
+    return COLUMN_LABEL_MAP[lower];
+  }
+  return col
+    .split('_')
+    .map((word) => {
+      const wLower = word.toLowerCase();
+      if (['id', 'mrr', 'nps', 'arr', 'usd', 'ai', 'sql', 'avg'].includes(wLower)) {
+        return wLower.toUpperCase();
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    })
+    .join(' ');
+}
+
+function isNumericValue(val: any): boolean {
+  if (val === null || val === undefined || val === '') return false;
+  if (typeof val === 'number') return !isNaN(val);
+  if (typeof val === 'bigint') return true;
+  if (typeof val === 'string' && /^-?\d+(\.\d+)?$/.test(val.trim())) return true;
+  return false;
+}
+
+function checkColumnIsNumeric(rows: Record<string, any>[], col: string): boolean {
+  if (!rows || rows.length === 0) return false;
+  const nonNull = rows.map((r) => r[col]).filter((v) => v !== null && v !== undefined && v !== '');
+  if (nonNull.length === 0) return false;
+  return nonNull.every(isNumericValue);
+}
+
+function formatCellValue(val: any, col: string): React.ReactNode {
+  if (val === null || val === undefined) {
+    return <span className="text-text-muted italic">null</span>;
+  }
+  if (typeof val === 'boolean') {
+    return val ? 'true' : 'false';
+  }
+
+  if (isNumericValue(val)) {
+    const num = Number(val);
+    const colLower = col.toLowerCase();
+
+    // Currency columns: MRR, Sales, Profit, Revenue, etc.
+    const isCurrency = /(mrr|sales|profit|revenue|price|amount|cost|spend|lost_or_at_risk_mrr|total_mrr|avg_mrr)/i.test(colLower);
+    if (isCurrency) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: num % 1 === 0 ? 0 : 2,
+      }).format(num);
+    }
+
+    // Percentage columns
+    const isPercentage = /(pct|percent|discount_pct|margin)/i.test(colLower);
+    if (isPercentage) {
+      const pctValue = Math.abs(num) <= 1 ? num * 100 : num;
+      return `${pctValue.toFixed(pctValue % 1 === 0 ? 0 : 1)}%`;
+    }
+
+    // General numbers (thousands separator, max 2 decimals)
+    return new Intl.NumberFormat('en-US', {
+      maximumFractionDigits: 2,
+    }).format(num);
+  }
+
+  return String(val);
 }
 
 export const ResultsView: React.FC<ResultsViewProps> = ({
   result,
   isDarkMode,
   onUpdateSql,
+  onOpenAuditor,
 }) => {
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [isEditingSql, setIsEditingSql] = useState<boolean>(false);
@@ -98,8 +203,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     if (valA === valB) return 0;
     if (valA === undefined || valA === null) return 1;
     if (valB === undefined || valB === null) return -1;
-    if (typeof valA === 'number' && typeof valB === 'number') {
-      return sortAsc ? valA - valB : valB - valA;
+    if (isNumericValue(valA) && isNumericValue(valB)) {
+      return sortAsc ? Number(valA) - Number(valB) : Number(valB) - Number(valA);
     }
     return sortAsc
       ? String(valA).localeCompare(String(valB))
@@ -118,12 +223,19 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     }
   };
 
-  const isColumnNumeric = (colName: string) => {
-    return result.rows.some((r) => typeof r[colName] === 'number');
+  const cardStyle: React.CSSProperties = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: '12px',
+    overflow: 'hidden',
   };
-
-  const cardBg = 'bg-surface border-border-subtle';
-  const headerBg = 'bg-surface-secondary/70 border-border-subtle';
+  const headerStyle: React.CSSProperties = {
+    background: isDarkMode ? 'rgba(30,27,24,0.6)' : 'rgba(237,233,226,0.5)',
+    borderBottom: '1px solid var(--border)',
+    padding: '10px 16px',
+  };
+  const cardBg = 'bg-surface border-border-subtle'; // kept for backward compat
+  const headerBg = 'bg-surface-secondary/70 border-border-subtle'; // kept for backward compat
 
   // Status Badge Rendering
   const renderStatusBadge = () => {
@@ -148,7 +260,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     return (
       <span className="text-[11px] font-bold tracking-wider uppercase px-2.5 py-1 rounded-md bg-badge-success-bg text-badge-success-fg border border-badge-success-border flex items-center gap-1.5 shadow-2xs">
         <CheckCircle2 className="w-3.5 h-3.5" />
-        Verified Pipeline ({passCount} Checks Passed)
+        Query Matches Request ({passCount} Checks Passed)
       </span>
     );
   };
@@ -156,7 +268,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   return (
     <div className="space-y-4 animate-result-enter pb-12">
       {/* 1. Header Card: User's Question & Verification State */}
-      <div className={`rounded-xl border p-4 sm:p-5 ${cardBg} shadow-2xs`}>
+      <div style={cardStyle} className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
             <span className="text-[10px] font-bold uppercase tracking-wider text-text-secondary block mb-1">
@@ -183,70 +295,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         )}
       </div>
 
-      {/* 2. Executive AI Insight Card (Grounded in Verified Query Result) */}
-      {result.insight && (
-        <div className="rounded-xl border p-4 sm:p-5 relative overflow-hidden bg-surface border-border-subtle shadow-xs transition-colors duration-fast">
-          <div className="flex items-start gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-badge-accent-bg text-badge-accent-fg border border-badge-accent-border flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
-              <Sparkles className="w-4.5 h-4.5 text-accent" />
-            </div>
-
-            <div className="space-y-3.5 flex-1 min-w-0">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-accent block select-none">
-                  Verified Executive Finding
-                </span>
-                <h3 className="text-base sm:text-lg font-semibold text-text-primary mt-1 leading-snug">
-                  {result.insight.summary}
-                </h3>
-              </div>
-
-              {/* Supporting Evidence Signals */}
-              {result.insight.highlights && result.insight.highlights.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                  {result.insight.highlights.map((h, i) => (
-                    <div
-                      key={i}
-                      className="p-3 rounded-lg border border-border-subtle bg-surface-secondary/60 text-xs sm:text-sm leading-relaxed text-text-secondary transition-colors duration-fast"
-                    >
-                      <span className="block font-semibold text-text-primary text-xs mb-1">Signal {i + 1}</span>
-                      {h}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Caveats (Phase 6) */}
-              {result.insight.caveats && result.insight.caveats.length > 0 && (
-                <div className="space-y-1.5 pt-1">
-                  {result.insight.caveats.map((c, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-text-secondary bg-surface-secondary/40 p-2.5 rounded-lg border border-border-subtle">
-                      <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
-                      <span>
-                        <strong className="font-semibold text-text-primary mr-1">Caveat:</strong>
-                        {c}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Recommended Action (Hypothesis based on verified data) */}
-              {result.insight.recommendedAction && (
-                <div className="flex items-start gap-2 pt-2.5 border-t border-border-subtle mt-1.5">
-                  <TrendingUp className="w-4 h-4 flex-shrink-0 mt-0.5 text-accent" />
-                  <p className="text-xs sm:text-sm text-text-secondary leading-relaxed">
-                    <strong className="text-text-primary font-semibold mr-1">Recommended Action:</strong>
-                    {result.insight.recommendedAction}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3. Interactive Data Visualization (Rendered only when valid and analytical) */}
+      {/* 2. Interactive Data Visualization (Rendered above table if suggested) */}
       {result.chartSuggestion && result.rows.length > 0 && (
         <DataChart
           data={result.rows}
@@ -255,15 +304,15 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         />
       )}
 
-      {/* 4. Query Results Data Table (Primary for detail lookups) */}
+      {/* 3. Query Results Data Table (THE PRIMARY ANSWER - Positioned immediately above the fold) */}
       {result.rows && result.rows.length > 0 && (
-        <div className={`rounded-xl border overflow-hidden ${cardBg} shadow-2xs`}>
-          <div className={`px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${headerBg}`}>
+        <div style={cardStyle}>
+          <div style={{...headerStyle, padding: '10px 16px'}} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold tracking-wider uppercase text-text-secondary">
-                Query Results Table
+              <span className="section-label" style={{ color: 'var(--text-primary)' }}>
+                Query Results
               </span>
-              <span className="text-sm font-medium text-text-muted">
+              <span className="text-xs font-medium text-text-secondary">
                 (Showing {paginatedRows.length} of {result.rowCount.toLocaleString()} rows)
               </span>
             </div>
@@ -280,7 +329,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                     setSearchTerm(e.target.value);
                     setPage(1);
                   }}
-                  className="text-sm pl-8 pr-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent w-48 transition-all duration-fast shadow-2xs"
+                  className="text-xs sm:text-sm pl-8 pr-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent w-48 transition-all duration-fast shadow-2xs"
                 />
               </div>
 
@@ -289,7 +338,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 type="button"
                 onClick={handleExportCsv}
                 disabled={result.rows.length === 0}
-                className="btn-interactive text-sm px-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center gap-2 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+                className="btn-interactive text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center gap-2 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
                 title="Download results as CSV"
               >
                 <Download className="w-4 h-4" />
@@ -298,8 +347,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             </div>
           </div>
 
-          {/* Table Content */}
-          <div className="overflow-x-auto max-w-full">
+          {/* Table Content with Zebra Striping and Clean Spacing */}
+          <div className="overflow-x-auto max-w-full pb-1">
             {result.rows.length === 0 ? (
               <div className="p-8 text-center text-sm text-text-muted italic">
                 Query completed with 0 rows returned.
@@ -309,18 +358,18 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 <thead>
                   <tr className="bg-surface-secondary/90 text-text-secondary border-b border-border-subtle select-none">
                     {result.columns.map((col) => {
-                      const isNum = isColumnNumeric(col);
+                      const isNum = checkColumnIsNumeric(result.rows, col);
                       return (
                         <th
                           key={col}
                           onClick={() => handleSort(col)}
-                          className={`px-4 py-3 font-semibold font-mono uppercase tracking-wider text-[11px] cursor-pointer hover:text-text-primary transition-colors duration-fast ${
+                          className={`px-4 py-3 font-semibold text-xs tracking-tight cursor-pointer hover:text-text-primary transition-colors duration-fast ${
                             isNum ? 'text-right' : 'text-left'
                           }`}
                         >
                           <div className={`flex items-center gap-1.5 ${isNum ? 'justify-end' : 'justify-start'}`}>
-                            <span>{col}</span>
-                            <ArrowUpDown className="w-3 h-3 opacity-50" />
+                            <span>{prettifyColumnHeader(col)}</span>
+                            <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                           </div>
                         </th>
                       );
@@ -331,25 +380,19 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                   {paginatedRows.map((row, rIdx) => (
                     <tr
                       key={rIdx}
-                      className="transition-colors duration-fast hover:bg-surface-secondary/60 group"
+                      className="odd:bg-surface even:bg-surface-secondary/35 hover:bg-accent/8 transition-colors duration-fast group"
                     >
                       {result.columns.map((col) => {
                         const val = row[col];
-                        const isNum = typeof val === 'number';
+                        const isNum = checkColumnIsNumeric(result.rows, col);
                         return (
                           <td
                             key={col}
-                            className={`px-4 py-3 text-text-primary border-r border-border-subtle/50 last:border-0 ${
-                              isNum ? 'font-mono tabular-nums text-right' : 'font-sans'
+                            className={`px-4 py-3 text-text-primary border-r border-border-subtle/30 last:border-0 ${
+                              isNum ? 'font-mono tabular-nums text-right font-medium' : 'font-sans text-left'
                             }`}
                           >
-                            {val === null || val === undefined ? (
-                              <span className="text-text-muted italic">null</span>
-                            ) : typeof val === 'boolean' ? (
-                              val ? 'true' : 'false'
-                            ) : (
-                              String(val)
-                            )}
+                            {formatCellValue(val, col)}
                           </td>
                         );
                       })}
@@ -362,7 +405,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
           {/* Pagination Footer */}
           {totalPages > 1 && (
-            <div className={`px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-text-secondary ${headerBg}`}>
+            <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm text-text-secondary" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-secondary)' }}>
               <span>
                 Page {page} of {totalPages} ({sortedRows.length.toLocaleString()} filtered rows)
               </span>
@@ -389,12 +432,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
       )}
 
+      {/* 4. Executive Analytical Briefing (Structured Corporate Grid) */}
+      {result.insight && (
+        <ExecutiveBriefing
+          insightsPayload={result.insight}
+          isDarkMode={isDarkMode}
+        />
+      )}
+
       {/* 5. Generated SQL Panel */}
       {result.sql && (
-        <div className={`rounded-xl border overflow-hidden ${cardBg} shadow-2xs`}>
-          <div className={`px-4 py-2.5 border-b flex items-center justify-between ${headerBg}`}>
+        <div style={cardStyle}>
+          <div style={headerStyle} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold tracking-wider uppercase text-text-secondary">
+              <span className="section-label">
                 Generated SQL
               </span>
               <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-badge-success-bg text-badge-success-fg border border-badge-success-border font-medium shadow-2xs">
@@ -468,20 +519,21 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
       {/* 6. Execution & Validation Details (Collapsible Technical Trace) */}
       {result.reasoningSteps && result.reasoningSteps.length > 0 && (
-        <div className={`rounded-xl border ${cardBg} shadow-2xs overflow-hidden`}>
+        <div style={cardStyle}>
           <button
             type="button"
             onClick={() => setIsTraceExpanded(!isTraceExpanded)}
-            className={`w-full px-4 py-2.5 border-b flex items-center justify-between text-left transition-colors duration-fast hover:bg-surface-secondary/80 ${headerBg}`}
+            className="w-full flex items-center justify-between text-left transition-colors duration-fast hover:bg-surface-secondary/50"
+            style={headerStyle}
           >
             <div className="flex items-center gap-2">
               <Cpu className="w-4 h-4 text-accent" />
-              <span className="text-[11px] font-bold tracking-wider uppercase text-text-primary">
+              <span className="section-label" style={{ color: 'var(--text-primary)' }}>
                 Execution & Validation Trace
               </span>
               {result.passedChecks && result.passedChecks.length > 0 && (
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-surface text-text-secondary border border-border-subtle font-mono">
-                  {result.passedChecks.length} checks verified
+                  {result.passedChecks.length} checks
                 </span>
               )}
             </div>
@@ -501,9 +553,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               {/* Passed Contract Checks */}
               {result.passedChecks && result.passedChecks.length > 0 && (
                 <div className="p-3 rounded-lg bg-badge-success-bg/30 border border-badge-success-border/50 mb-3">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-text-primary mb-2">
-                    <ShieldCheck className="w-4 h-4 text-badge-success-fg" />
-                    <span>Verified Intent & Integrity Checks:</span>
+                  <div className="flex items-center justify-between text-xs font-semibold text-text-primary mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-badge-success-fg" />
+                      <span>Request & Integrity Checks:</span>
+                    </div>
+                    {onOpenAuditor && (
+                      <button
+                        type="button"
+                        onClick={onOpenAuditor}
+                        className="text-[11px] font-medium text-accent hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        <span>Inspect Outbound Packet</span>
+                      </button>
+                    )}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-text-secondary">
                     {result.passedChecks.map((chk, i) => (

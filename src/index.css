@@ -43,12 +43,6 @@
   --color-code-fg: var(--code-fg);
   --color-code-border: var(--code-border);
 
-  /* Brand Foundation constants */
-  --color-brand-graphite: #141418;
-  --color-brand-violet: #5B4BE8;
-  --color-brand-violet-soft: #8B7FF5;
-  --color-brand-warm-white: #F4F4F2;
-
   /* Durations */
   --duration-fast: 140ms;
   --duration-standard: 200ms;
@@ -59,63 +53,58 @@
 
 @layer base {
   :root {
-    --font-sans: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    --font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
-    /* Brand Foundation */
-    --brand-graphite: #141418;
-    --brand-violet: #5B4BE8;
-    --brand-violet-soft: #8B7FF5;
-    --brand-warm-white: #F4F4F2;
-
-    /* Light Theme Tokens */
-    --background: #F7F8FA;
-    --surface: #FFFFFF;
-    --surface-secondary: #F1F3F7;
+    /* Light Theme — warm off-white, not clinical white */
+    --background: #F5F3EF;
+    --surface: #FDFCFB;
+    --surface-secondary: #EDE9E2;
     --surface-elevated: #FFFFFF;
 
-    --border: #E1E5EC;
-    --border-strong: #CBD2DE;
+    --border: #DDD8CF;
+    --border-strong: #C9C2B6;
 
-    --text-primary: #171923;
-    --text-secondary: #4B5565;
-    --text-muted: #667085;
+    --text-primary: #1C1917;
+    --text-secondary: #44403C;
+    --text-muted: #78716C;
 
-    --accent: #5B4BE8;
-    --accent-hover: #4938D1;
+    /* Warm amber-orange accent instead of flat violet */
+    --accent: #D97706;
+    --accent-hover: #B45309;
 
     --success: #047857;
     --warning: #B45309;
-    --error: #B42318;
-    --info: #1D4ED8;
+    --error: #B91C1C;
+    --info: #0369A1;
 
     /* Semantic Badge Combinations (Light) */
     --badge-success-bg: #ECFDF5;
-    --badge-success-fg: #047857;
-    --badge-success-border: #A7F3D0;
+    --badge-success-fg: #065F46;
+    --badge-success-border: #6EE7B7;
 
     --badge-warning-bg: #FFFBEB;
-    --badge-warning-fg: #B45309;
-    --badge-warning-border: #FDE68A;
+    --badge-warning-fg: #92400E;
+    --badge-warning-border: #FCD34D;
 
     --badge-error-bg: #FEF2F2;
-    --badge-error-fg: #B42318;
-    --badge-error-border: #FECACA;
+    --badge-error-fg: #991B1B;
+    --badge-error-border: #FCA5A5;
 
-    --badge-info-bg: #EFF6FF;
-    --badge-info-fg: #1D4ED8;
-    --badge-info-border: #BFDBFE;
+    --badge-info-bg: #F0F9FF;
+    --badge-info-fg: #075985;
+    --badge-info-border: #7DD3FC;
 
-    --badge-accent-bg: #F3F0FF;
-    --badge-accent-fg: #5B4BE8;
-    --badge-accent-border: #DDD6FE;
+    --badge-accent-bg: #FFFBEB;
+    --badge-accent-fg: #92400E;
+    --badge-accent-border: #FCD34D;
 
-    /* Code block */
-    --code-bg: #14161F;
-    --code-fg: #F5F7FA;
-    --code-border: #282D3D;
+    /* Code block — deep slate */
+    --code-bg: #0F172A;
+    --code-fg: #E2E8F0;
+    --code-border: #1E293B;
 
-    /* Motion Curves & Durations */
+    /* Motion */
     --duration-fast: 140ms;
     --duration-standard: 200ms;
     --duration-disclosure: 200ms;
@@ -127,79 +116,144 @@
   }
 
   .dark {
-    /* Dark Theme Tokens */
-    --background: #0B0D12;
-    --surface: #11141B;
-    --surface-secondary: #171B24;
-    --surface-elevated: #1C202B;
+    /* Deep charcoal base — not pure black, has warmth */
+    --background: #0E0C0A;
+    --surface: #161412;
+    --surface-secondary: #1E1B18;
+    --surface-elevated: #252119;
 
-    --border: #282D38;
-    --border-strong: #363D4B;
+    --border: #2E2A26;
+    --border-strong: #3D3830;
 
-    --text-primary: #F5F7FA;
-    --text-secondary: #B6BECC;
-    --text-muted: #929BAD;
+    --text-primary: #FAF9F7;
+    --text-secondary: #D6D0C8;
+    --text-muted: #9C948A;
 
-    --accent: #8B7FF5;
-    --accent-hover: #A59BFF;
+    /* Warm amber/teal accent in dark mode */
+    --accent: #F59E0B;
+    --accent-hover: #FBBF24;
 
     --success: #34D399;
     --warning: #FBBF24;
     --error: #F87171;
-    --info: #93C5FD;
+    --info: #38BDF8;
 
     /* Semantic Badge Combinations (Dark) */
-    --badge-success-bg: rgba(52, 211, 153, 0.12);
-    --badge-success-fg: #34D399;
+    --badge-success-bg: rgba(52, 211, 153, 0.1);
+    --badge-success-fg: #6EE7B7;
     --badge-success-border: rgba(52, 211, 153, 0.25);
 
-    --badge-warning-bg: rgba(251, 191, 36, 0.12);
-    --badge-warning-fg: #FBBF24;
+    --badge-warning-bg: rgba(251, 191, 36, 0.1);
+    --badge-warning-fg: #FCD34D;
     --badge-warning-border: rgba(251, 191, 36, 0.25);
 
-    --badge-error-bg: rgba(248, 113, 113, 0.12);
-    --badge-error-fg: #F87171;
+    --badge-error-bg: rgba(248, 113, 113, 0.1);
+    --badge-error-fg: #FCA5A5;
     --badge-error-border: rgba(248, 113, 113, 0.25);
 
-    --badge-info-bg: rgba(147, 197, 253, 0.12);
-    --badge-info-fg: #93C5FD;
-    --badge-info-border: rgba(147, 197, 253, 0.25);
+    --badge-info-bg: rgba(56, 189, 248, 0.1);
+    --badge-info-fg: #7DD3FC;
+    --badge-info-border: rgba(56, 189, 248, 0.25);
 
-    --badge-accent-bg: rgba(139, 127, 245, 0.15);
-    --badge-accent-fg: #8B7FF5;
-    --badge-accent-border: rgba(139, 127, 245, 0.3);
+    --badge-accent-bg: rgba(245, 158, 11, 0.12);
+    --badge-accent-fg: #FCD34D;
+    --badge-accent-border: rgba(245, 158, 11, 0.3);
 
     /* Code block */
-    --code-bg: #0B0D12;
-    --code-fg: #F5F7FA;
-    --code-border: #282D38;
+    --code-bg: #080706;
+    --code-fg: #E2E8F0;
+    --code-border: #2E2A26;
   }
 
   body {
     font-family: var(--font-sans);
     background-color: var(--background);
     color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
-  
+
   code, pre, kbd {
     font-family: var(--font-mono);
   }
 }
 
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(140, 150, 170, 0.2);
+  background: rgba(120, 113, 108, 0.25);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(140, 150, 170, 0.35);
+  background: rgba(120, 113, 108, 0.45);
+}
+
+/* =====================================================
+   DESIGN SYSTEM UTILITIES
+   ===================================================== */
+
+/* Card with organic left-accent instead of full box border */
+.card-organic {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  position: relative;
+  overflow: hidden;
+}
+.card-organic::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: linear-gradient(to bottom, var(--accent), transparent);
+  opacity: 0.6;
+}
+
+/* Section divider — a subtle horizontal rule with label */
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Gradient accent button */
+.btn-accent-gradient {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15), 0 0 0 0px rgba(245,158,11,0);
+}
+.btn-accent-gradient:hover:not(:disabled) {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+}
+.btn-accent-gradient:active:not(:disabled) {
+  transform: translateY(0);
+  opacity: 1;
+}
+.btn-accent-gradient:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* Motion Design System */
@@ -217,31 +271,27 @@
   transform: translateY(0);
 }
 .btn-interactive:disabled {
-  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
 
+/* =====================================================
+   ANIMATIONS
+   ===================================================== */
+
 @keyframes resultEnter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes chartEnter {
-  from {
-    opacity: 0;
-    transform: scale(0.99);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
 }
 
 .animate-result-enter {
@@ -252,11 +302,40 @@
   animation: chartEnter var(--duration-chart-enter) var(--ease-out-smooth) forwards;
 }
 
-/* Reduced motion preference */
+/* Gradient text for headings */
+.gradient-text {
+  background: linear-gradient(135deg, var(--accent), #EF4444 60%, var(--accent));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+}
+
+/* Noise texture overlay for depth */
+.surface-textured {
+  position: relative;
+}
+.surface-textured::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: 0.4;
+}
+
+/* =====================================================
+   TABLE IMPROVEMENTS
+   ===================================================== */
+
+.results-table tr:hover td {
+  background-color: rgba(245, 158, 11, 0.06);
+}
+
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;

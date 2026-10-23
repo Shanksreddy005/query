@@ -440,7 +440,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                         <Check className="w-3.5 h-3.5 text-accent" />
                       )}
                     </div>
-                    <div className="text-[10.5px] text-text-muted mt-1">20 rows · Churn & Revenue</div>
+                    <div className="text-[10.5px] text-text-muted mt-1">
+                      {PREBUILT_DATASETS.saas.dataset.rowCount} rows · Subscriptions & Churn
+                    </div>
                   </button>
 
                   <button
@@ -458,7 +460,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                         <Check className="w-3.5 h-3.5 text-accent" />
                       )}
                     </div>
-                    <div className="text-[10.5px] text-text-muted mt-1">15 rows · Sales & Profit</div>
+                    <div className="text-[10.5px] text-text-muted mt-1">
+                      {PREBUILT_DATASETS.ecommerce.dataset.rowCount} rows · Sales & Profitability
+                    </div>
                   </button>
                 </div>
               </div>

@@ -176,3 +176,80 @@ TEMPORAL / DATES:
 ${formatCols(schema.temporals) || '  (none)'}
 `.trim();
 }
+
+export interface InferredColumnProfile {
+  name: string;
+  dataType: string;
+  distinctValues: string[];
+  hasNulls: boolean;
+  inferredRole: 'DIMENSION' | 'METRIC' | 'TEMPORAL' | 'KEY';
+}
+
+export interface DatasetProfile {
+  tableName: string;
+  columnNames: string[];
+  columns: InferredColumnProfile[];
+}
+
+export class SchemaProfiler {
+  private db: any; // DuckDB-WASM instance
+
+  constructor(duckDbInstance: any) {
+    this.db = duckDbInstance;
+  }
+
+  /**
+   * Leverages DuckDB's native execution engine to dynamically extract table semantics
+   * without extracting or reading sensitive underlying text rows.
+   */
+  public async profileTable(tableName: string): Promise<DatasetProfile> {
+    const conn = await this.db.connect();
+    
+    // 1. Fetch Structural Outlines instantly using SUMMARIZE
+    const summaryResult = await conn.query(`SUMMARIZE "${tableName}";`);
+    const summaryRows = summaryResult.toArray().map((r: any) => r.toJSON());
+
+    const columns: InferredColumnProfile[] = [];
+
+    for (const col of summaryRows) {
+      const colName = col.column_name;
+      const dType = col.column_type;
+      
+      // 2. Fetch High-Probability Categorical Enums for Low-Cardinality Fields (< 10 distinct values)
+      let distinctValues: string[] = [];
+      const cardResult = await conn.query(`SELECT COUNT(DISTINCT "${colName}") as c FROM "${tableName}";`);
+      const distinctCount = cardResult.toArray()[0].c;
+
+      if (distinctCount > 0 && distinctCount <= 10) {
+        const enumResult = await conn.query(`SELECT DISTINCT "${colName}"::VARCHAR as val FROM "${tableName}" WHERE "${colName}" IS NOT NULL LIMIT 10;`);
+        distinctValues = enumResult.toArray().map((r: any) => r.val);
+      }
+
+      // 3. Infer Operational Roles to strictly direct model calculation vectors
+      let inferredRole: 'DIMENSION' | 'METRIC' | 'TEMPORAL' | 'KEY' = 'DIMENSION';
+      if (['INTEGER', 'BIGINT', 'DOUBLE', 'FLOAT', 'DECIMAL', 'HUGEINT'].includes(dType.toUpperCase()) && distinctCount > 12) {
+        inferredRole = 'METRIC';
+      } else if (['DATE', 'TIMESTAMP', 'TIME'].some(t => dType.toUpperCase().includes(t))) {
+        inferredRole = 'TEMPORAL';
+      } else if (colName.toLowerCase().endsWith('id') || colName.toLowerCase().endsWith('key')) {
+        inferredRole = 'KEY';
+      }
+
+      columns.push({
+        name: colName,
+        dataType: dType,
+        distinctValues,
+        hasNulls: parseFloat(col.null_percentage) > 0,
+        inferredRole
+      });
+    }
+
+    await conn.close();
+
+    return {
+      tableName,
+      columnNames: columns.map(c => c.name),
+      columns
+    };
+  }
+}

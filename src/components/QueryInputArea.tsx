@@ -60,61 +60,97 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
     ];
   }
 
-  const cardBorder = 'border-border-subtle hover:border-border-strong focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25';
+  const canRun = !isRunning && Boolean(query.trim()) && Boolean(dataset);
 
   return (
     <div className="w-full space-y-4">
-      {/* Hero Welcome state if no query run yet */}
+      {/* Hero Welcome state */}
       {!hasRunAnyQuery && (
-        <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-center animate-in fade-in duration-300">
-          <QueryMindLogo size={48} variant="stacked" isDarkMode={isDarkMode} />
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-4 text-text-primary">
+        <div className="flex flex-col items-center justify-center py-8 sm:py-10 text-center animate-in fade-in duration-300">
+          <QueryMindLogo size={44} variant="stacked" isDarkMode={isDarkMode} />
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight mt-5 text-text-primary">
             Talk to your data. Get answers.
           </h2>
-          <p className="text-xs sm:text-sm text-text-secondary mt-1.5 max-w-md leading-relaxed">
-            Ask questions in plain English. QueryMind plans, validates, and executes SQL locally in your browser.
+          <p className="text-xs sm:text-sm text-text-muted mt-2 max-w-sm leading-relaxed">
+            Ask questions in plain English — QueryMind plans, validates, and executes SQL locally in your browser.
           </p>
         </div>
       )}
 
       {/* Main Query Input Card */}
-      <div className={`rounded-2xl border shadow-sm overflow-hidden transition-all duration-fast bg-surface ${cardBorder}`}>
-        <div className="p-3 sm:p-4 bg-surface">
+      <div
+        className="rounded-2xl overflow-hidden transition-all duration-fast"
+        style={{
+          border: '1px solid var(--border)',
+          background: 'var(--surface)',
+          boxShadow: isDarkMode
+            ? '0 1px 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(245,158,11,0)'
+            : '0 1px 3px rgba(0,0,0,0.08)',
+          outline: 'none',
+        }}
+        onFocusCapture={(e) => {
+          (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--accent)';
+          (e.currentTarget as HTMLDivElement).style.boxShadow = isDarkMode
+            ? '0 1px 2px rgba(0,0,0,0.4), 0 0 0 3px rgba(245,158,11,0.15)'
+            : '0 1px 3px rgba(0,0,0,0.08), 0 0 0 3px rgba(217,119,6,0.12)';
+        }}
+        onBlurCapture={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)';
+            (e.currentTarget as HTMLDivElement).style.boxShadow = isDarkMode
+              ? '0 1px 2px rgba(0,0,0,0.4)'
+              : '0 1px 3px rgba(0,0,0,0.08)';
+          }
+        }}
+      >
+        {/* Textarea */}
+        <div className="p-3.5 sm:p-4" style={{ background: 'var(--surface)' }}>
           <textarea
             ref={textareaRef}
             rows={2}
             value={query}
             onChange={(e) => onChangeQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={`Ask a question about ${dataset?.name || 'your dataset'} in plain English...`}
+            placeholder={`Ask a question about ${dataset?.name || 'your dataset'} in plain English…`}
             disabled={isRunning || !dataset}
-            className="w-full bg-transparent outline-none resize-none text-sm sm:text-base leading-relaxed placeholder:text-text-muted font-sans text-text-primary disabled:opacity-50"
+            className="w-full bg-transparent outline-none resize-none text-sm sm:text-base leading-relaxed font-sans text-text-primary disabled:opacity-50"
+            style={{ color: 'var(--text-primary)', caretColor: 'var(--accent)' }}
           />
         </div>
 
         {/* Live Step Progress Display */}
         {isRunning && activeStep && (
-          <div className="px-4 py-2 border-t border-border-subtle flex items-center justify-between text-xs transition-colors duration-fast bg-badge-accent-bg text-badge-accent-fg border-badge-accent-border font-medium">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0 text-accent" />
-              <span className="font-semibold flex-shrink-0">{activeStep.title}:</span>
-              <span className="truncate opacity-90">{activeStep.detail}</span>
-            </div>
+          <div
+            className="px-4 py-2 flex items-center gap-2 text-xs font-medium"
+            style={{
+              borderTop: '1px solid var(--border)',
+              background: 'rgba(245,158,11,0.08)',
+              color: isDarkMode ? '#FCD34D' : '#92400E',
+            }}
+          >
+            <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" style={{ color: 'var(--accent)' }} />
+            <span className="font-semibold flex-shrink-0">{activeStep.title}:</span>
+            <span className="truncate opacity-80">{activeStep.detail}</span>
           </div>
         )}
 
-        {/* Card Footer with shortcuts and Run Button */}
-        <div className="px-3 sm:px-4 py-2.5 border-t flex items-center justify-between gap-3 text-xs bg-surface-secondary/70 border-border-subtle">
-          <div className="flex items-center gap-1.5 text-text-muted select-none">
+        {/* Card Footer */}
+        <div
+          className="px-3.5 sm:px-4 py-2.5 flex items-center justify-between gap-3 text-xs"
+          style={{
+            borderTop: '1px solid var(--border)',
+            background: isDarkMode ? 'rgba(30,27,24,0.5)' : 'rgba(237,233,226,0.5)',
+          }}
+        >
+          <div className="flex items-center gap-1.5 text-text-muted font-medium select-none">
             <span className="hidden sm:inline">Press</span>
-            <kbd className="px-1.5 py-0.5 rounded text-[11px] font-mono border bg-surface border-border-strong text-text-secondary shadow-2xs">
-              ⌘ + Enter
+            <kbd
+              className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
+              style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
+            >
+              ⌘ Enter
             </kbd>
-            <span className="hidden sm:inline">or</span>
-            <kbd className="hidden sm:inline-block px-1.5 py-0.5 rounded text-[11px] font-mono border bg-surface border-border-strong text-text-secondary shadow-2xs">
-              Ctrl + Enter
-            </kbd>
-            <span className="hidden sm:inline">to execute</span>
+            <span className="hidden sm:inline text-text-muted opacity-60">to run</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -132,17 +168,26 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
             <button
               type="button"
               onClick={() => onRunQuery()}
-              disabled={isRunning || !query.trim() || !dataset}
-              className={`btn-interactive flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-white shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                isRunning || !query.trim() || !dataset
-                  ? 'bg-accent/40 cursor-not-allowed'
-                  : 'bg-accent hover:bg-accent-hover active:bg-accent-hover'
+              disabled={!canRun}
+              className={`btn-accent-gradient flex items-center gap-2 px-4 py-1.5 text-xs sm:text-sm font-semibold focus-visible:outline-none ${
+                !canRun ? 'opacity-40 cursor-not-allowed' : ''
               }`}
+              style={
+                !canRun
+                  ? {
+                      background: 'var(--surface-secondary)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--text-muted)',
+                      boxShadow: 'none',
+                      transform: 'none',
+                    }
+                  : {}
+              }
             >
               {isRunning ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Thinking...</span>
+                  <span>Thinking…</span>
                 </>
               ) : (
                 <>
@@ -155,12 +200,12 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
         </div>
       </div>
 
-      {/* Suggested Query Buttons */}
+      {/* Suggested Query Chips */}
       {suggestions.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <span className="text-[11px] font-medium text-text-muted mr-1 flex items-center gap-1 select-none">
-            <Sparkles className="w-3.5 h-3.5 text-accent" />
-            Suggestions:
+        <div className="flex flex-wrap items-center gap-2 pt-0.5">
+          <span className="text-[11px] font-semibold text-text-muted flex items-center gap-1.5 select-none">
+            <Sparkles className="w-3 h-3 text-accent" />
+            Try:
           </span>
           {suggestions.map((s, idx) => (
             <button
@@ -171,7 +216,24 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
                 onRunQuery(s);
               }}
               disabled={isRunning}
-              className="btn-interactive text-xs px-2.5 py-1.5 rounded-lg border text-left border-border-subtle bg-surface-secondary/70 text-text-secondary hover:border-border-strong hover:text-text-primary hover:bg-surface-elevated font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
+              className="btn-interactive text-xs px-2.5 py-1.5 rounded-lg text-left font-medium transition-all duration-fast focus-visible:outline-none"
+              style={{
+                background: 'var(--surface)',
+                border: '1px solid var(--border)',
+                color: 'var(--text-secondary)',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--accent)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--accent)';
+                (e.currentTarget as HTMLButtonElement).style.background = isDarkMode
+                  ? 'rgba(245,158,11,0.08)'
+                  : 'rgba(217,119,6,0.06)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border)';
+                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+                (e.currentTarget as HTMLButtonElement).style.background = 'var(--surface)';
+              }}
             >
               {s}
             </button>
