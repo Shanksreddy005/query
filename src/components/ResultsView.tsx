@@ -20,13 +20,25 @@ import {
   ChevronDown,
   ChevronUp,
   ShieldCheck,
+  Bookmark,
+  BookmarkCheck,
+  FileJson,
+  BarChart3,
+  Presentation,
+  Rows,
+  SlidersHorizontal,
 } from 'lucide-react';
+import { LocalQueryStorage } from '../services/localQueryStorage';
+import { Dataset } from '../types';
 
 interface ResultsViewProps {
   result: QueryResult;
   isDarkMode: boolean;
   onUpdateSql: (newSql: string) => void;
   onOpenAuditor?: () => void;
+  dataset?: Dataset | null;
+  isPresentationMode?: boolean;
+  onTogglePresentationMode?: () => void;
 }
 
 const COLUMN_LABEL_MAP: Record<string, string> = {
@@ -135,6 +147,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   isDarkMode,
   onUpdateSql,
   onOpenAuditor,
+  dataset,
+  isPresentationMode = false,
+  onTogglePresentationMode,
 }) => {
   const [copiedSql, setCopiedSql] = useState<boolean>(false);
   const [isEditingSql, setIsEditingSql] = useState<boolean>(false);
@@ -144,15 +159,81 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   const [sortAsc, setSortAsc] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
   const [isTraceExpanded, setIsTraceExpanded] = useState<boolean>(false);
+  const [isSaved, setIsSaved] = useState<boolean>(false);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
+  const [isChartOpen, setIsChartOpen] = useState<boolean>(() => Boolean(result.chartSuggestion));
+  const [tableDensity, setTableDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const pageSize = 10;
 
-  // Sync editedSql if result changes
+  // Identify numeric columns in current result
+  const numericCols = React.useMemo(() => {
+    return result.columns.filter((c) => checkColumnIsNumeric(result.rows, c));
+  }, [result.columns, result.rows]);
+
+  // Compute smart fallback chart suggestion if none was provided by AI
+  const activeChartSuggestion = React.useMemo(() => {
+    if (result.chartSuggestion) return result.chartSuggestion;
+    const catCol =
+      result.columns.find((c) => !checkColumnIsNumeric(result.rows, c)) || result.columns[0] || 'entity';
+    const numCol = numericCols[0] || result.columns[1] || result.columns[0] || 'value';
+    return {
+      type: 'horizontal_bar' as const,
+      xAxisKey: catCol,
+      yAxisKey: numCol,
+      title: `${prettifyColumnHeader(numCol)} by ${prettifyColumnHeader(catCol)}`,
+    };
+  }, [result.chartSuggestion, result.columns, numericCols, result.rows]);
+
+  // Sync state if result changes
   React.useEffect(() => {
     setEditedSql(result.sql);
     setIsEditingSql(false);
     setSearchTerm('');
     setPage(1);
-  }, [result.id, result.sql]);
+    setIsChartOpen(Boolean(result.chartSuggestion));
+  }, [result.id, result.sql, result.chartSuggestion]);
+
+  // Sync saved state with LocalQueryStorage
+  React.useEffect(() => {
+    const storage = new LocalQueryStorage();
+    const cols = dataset?.columns.map((c) => c.name) || result.columns || [];
+    setIsSaved(storage.isQuerySaved(result.question, cols));
+
+    const handleUpdate = () => {
+      const s = new LocalQueryStorage();
+      setIsSaved(s.isQuerySaved(result.question, cols));
+    };
+    window.addEventListener('querymind_library_updated', handleUpdate);
+    return () => window.removeEventListener('querymind_library_updated', handleUpdate);
+  }, [result.question, result.columns, dataset]);
+
+  const handleToggleSave = () => {
+    const storage = new LocalQueryStorage();
+    const cols = dataset?.columns.map((c) => c.name) || result.columns || [];
+    if (isSaved) {
+      storage.deleteSavedQuery(result.question, storage.getFingerprint(cols));
+      setIsSaved(false);
+      setSaveFeedback('Removed from Sandboxed Memory');
+      setTimeout(() => setSaveFeedback(null), 2500);
+    } else {
+      const saved = storage.saveSuccessfulQuery(
+        result.question,
+        cols,
+        result.sql,
+        {
+          datasetName: dataset?.name || 'Custom Dataset',
+          rowCount: result.rowCount,
+          tableName: dataset?.tableName || 'dataset',
+          insightSummary: result.insight?.summary || result.insight?.executive_summary,
+        }
+      );
+      if (saved) {
+        setIsSaved(true);
+        setSaveFeedback('Saved to Sandboxed Memory!');
+        setTimeout(() => setSaveFeedback(null), 2500);
+      }
+    }
+  };
 
   const handleCopySql = () => {
     navigator.clipboard.writeText(result.sql);
@@ -184,6 +265,26 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
     const link = document.createElement('a');
     link.setAttribute('href', url);
     link.setAttribute('download', `querymind_results_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleExportJson = () => {
+    if (!result.rows || result.rows.length === 0) return;
+    const payload = {
+      question: result.question,
+      sql: result.sql,
+      executedAt: new Date().toISOString(),
+      rowCount: result.rowCount,
+      columns: result.columns,
+      rows: result.rows,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `querymind_results_${Date.now()}.json`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -267,6 +368,30 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   return (
     <div className="space-y-4 animate-result-enter pb-12">
+      {/* Presentation Mode Status Bar */}
+      {isPresentationMode && (
+        <div className="p-3.5 rounded-xl bg-accent/10 border border-accent/30 flex items-center justify-between text-xs animate-in fade-in">
+          <div className="flex items-center gap-2.5">
+            <Presentation className="w-4 h-4 text-accent flex-shrink-0" />
+            <div>
+              <span className="font-bold text-accent">Executive Presentation View Active</span>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                Displaying stakeholder briefing, KPIs, visualizations, and data table. SQL source code and technical execution traces are suppressed.
+              </p>
+            </div>
+          </div>
+          {onTogglePresentationMode && (
+            <button
+              type="button"
+              onClick={onTogglePresentationMode}
+              className="btn-interactive px-2.5 py-1 rounded-lg border border-accent/40 bg-surface text-accent hover:bg-accent/15 font-semibold text-xs transition-colors cursor-pointer flex-shrink-0 ml-3"
+            >
+              Exit View
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 1. Header Card: User's Question & Verification State */}
       <div style={cardStyle} className="p-4 sm:p-5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -278,10 +403,45 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
               "{result.question}"
             </h2>
           </div>
-          <div className="flex-shrink-0 self-start sm:self-center">
+          <div className="flex-shrink-0 flex items-center gap-2 self-start sm:self-center flex-wrap">
             {renderStatusBadge()}
+            {result.sql && (
+              <button
+                type="button"
+                onClick={handleToggleSave}
+                className={`btn-interactive flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border transition-all duration-fast shadow-2xs cursor-pointer ${
+                  isSaved
+                    ? 'border-accent/40 bg-accent/15 text-accent hover:bg-accent/25'
+                    : 'border-border-strong bg-surface hover:bg-surface-elevated text-text-primary hover:border-accent hover:text-accent'
+                }`}
+                title={
+                  isSaved
+                    ? 'Stored in sandboxed memory (Click to remove)'
+                    : 'Save this query to sandboxed memory for offline access and export'
+                }
+              >
+                {isSaved ? (
+                  <>
+                    <BookmarkCheck className="w-3.5 h-3.5 fill-current" />
+                    <span>In Memory</span>
+                  </>
+                ) : (
+                  <>
+                    <Bookmark className="w-3.5 h-3.5" />
+                    <span>Save to Memory</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
+
+        {saveFeedback && (
+          <div className="mt-3 text-xs font-medium text-accent flex items-center gap-1.5 animate-in fade-in">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>{saveFeedback}</span>
+          </div>
+        )}
 
         {/* Needs Clarification Banner if applicable */}
         {result.status === 'needs_clarification' && result.clarificationMessage && (
@@ -295,12 +455,16 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         )}
       </div>
 
-      {/* 2. Interactive Data Visualization (Rendered above table if suggested) */}
-      {result.chartSuggestion && result.rows.length > 0 && (
+      {/* 2. Interactive Data Visualization / Chart Studio */}
+      {isChartOpen && result.rows && result.rows.length > 0 && (
         <DataChart
           data={result.rows}
-          suggestion={result.chartSuggestion}
+          suggestion={activeChartSuggestion}
           isDarkMode={isDarkMode}
+          availableColumns={result.columns}
+          numericColumns={numericCols}
+          onClose={() => setIsChartOpen(false)}
+          allowCustomize={true}
         />
       )}
 
@@ -333,17 +497,57 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                 />
               </div>
 
-              {/* Export CSV */}
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                disabled={result.rows.length === 0}
-                className="btn-interactive text-xs sm:text-sm px-3 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center gap-2 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
-                title="Download results as CSV"
-              >
-                <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Export</span>
-              </button>
+              {/* Export Data (CSV and JSON) */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handleExportCsv}
+                  disabled={result.rows.length === 0}
+                  className="btn-interactive text-xs sm:text-sm px-2.5 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center gap-1.5 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 cursor-pointer disabled:opacity-40"
+                  title="Download results table as CSV"
+                >
+                  <Download className="w-3.5 h-3.5 text-accent" />
+                  <span>CSV</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportJson}
+                  disabled={result.rows.length === 0}
+                  className="btn-interactive text-xs sm:text-sm px-2.5 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated flex items-center gap-1.5 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 cursor-pointer disabled:opacity-40"
+                  title="Download results and metadata as JSON"
+                >
+                  <FileJson className="w-3.5 h-3.5 text-accent" />
+                  <span>JSON</span>
+                </button>
+
+                {/* Density Switcher (Comfortable vs Compact) */}
+                <button
+                  type="button"
+                  onClick={() => setTableDensity(tableDensity === 'comfortable' ? 'compact' : 'comfortable')}
+                  className="btn-interactive text-xs sm:text-sm px-2.5 py-1.5 rounded-lg border border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-accent flex items-center gap-1.5 font-medium shadow-2xs focus-visible:outline-none cursor-pointer"
+                  title={`Toggle row density (current: ${tableDensity})`}
+                >
+                  <Rows className="w-3.5 h-3.5 text-accent" />
+                  <span className="hidden sm:inline capitalize">{tableDensity}</span>
+                </button>
+
+                {/* Generate / Toggle Chart Button */}
+                {result.rows.length > 0 && numericCols.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsChartOpen(!isChartOpen)}
+                    className={`btn-interactive text-xs sm:text-sm px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 cursor-pointer transition-colors ${
+                      isChartOpen
+                        ? 'bg-accent/15 border-accent/40 text-accent font-semibold'
+                        : 'border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-accent'
+                    }`}
+                    title={isChartOpen ? 'Hide the chart visualization' : 'Generate an interactive chart from these results'}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5 text-accent" />
+                    <span>{isChartOpen ? 'Hide Chart' : 'Generate Chart'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -363,12 +567,14 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         <th
                           key={col}
                           onClick={() => handleSort(col)}
-                          className={`px-4 py-3 font-semibold text-xs tracking-tight cursor-pointer hover:text-text-primary transition-colors duration-fast ${
+                          className={`${
+                            tableDensity === 'compact' ? 'px-3 py-2 text-xs' : 'px-4 py-3 text-xs'
+                          } font-semibold tracking-tight cursor-pointer hover:text-text-primary transition-colors duration-fast min-w-[120px] max-w-[320px] ${
                             isNum ? 'text-right' : 'text-left'
                           }`}
                         >
                           <div className={`flex items-center gap-1.5 ${isNum ? 'justify-end' : 'justify-start'}`}>
-                            <span>{prettifyColumnHeader(col)}</span>
+                            <span className="truncate">{prettifyColumnHeader(col)}</span>
                             <ArrowUpDown className="w-3 h-3 opacity-50 flex-shrink-0" />
                           </div>
                         </th>
@@ -388,7 +594,9 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
                         return (
                           <td
                             key={col}
-                            className={`px-4 py-3 text-text-primary border-r border-border-subtle/30 last:border-0 ${
+                            className={`${
+                              tableDensity === 'compact' ? 'px-3 py-1.5 text-xs' : 'px-4 py-3 text-sm'
+                            } text-text-primary border-r border-border-subtle/30 last:border-0 max-w-[340px] truncate ${
                               isNum ? 'font-mono tabular-nums text-right font-medium' : 'font-sans text-left'
                             }`}
                           >
@@ -440,8 +648,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         />
       )}
 
-      {/* 5. Generated SQL Panel */}
-      {result.sql && (
+      {/* 5. Generated SQL Panel (Hidden in Executive Presentation Mode) */}
+      {!isPresentationMode && result.sql && (
         <div style={cardStyle}>
           <div style={headerStyle} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -454,6 +662,20 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleToggleSave}
+                className={`btn-interactive text-xs px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 font-medium shadow-2xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 cursor-pointer ${
+                  isSaved
+                    ? 'border-accent/40 bg-accent/15 text-accent'
+                    : 'border-border-strong bg-surface text-text-secondary hover:text-text-primary hover:border-border-strong hover:bg-surface-elevated'
+                }`}
+                title={isSaved ? 'Blueprint saved in sandboxed memory' : 'Save this SQL blueprint into Sandboxed Memory'}
+              >
+                {isSaved ? <BookmarkCheck className="w-3.5 h-3.5 fill-current" /> : <Bookmark className="w-3.5 h-3.5" />}
+                <span>{isSaved ? 'In Memory' : 'Save Blueprint'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setIsEditingSql(!isEditingSql)}
@@ -517,8 +739,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
         </div>
       )}
 
-      {/* 6. Execution & Validation Details (Collapsible Technical Trace) */}
-      {result.reasoningSteps && result.reasoningSteps.length > 0 && (
+      {/* 6. Execution & Validation Details (Hidden in Executive Presentation Mode) */}
+      {!isPresentationMode && result.reasoningSteps && result.reasoningSteps.length > 0 && (
         <div style={cardStyle}>
           <button
             type="button"

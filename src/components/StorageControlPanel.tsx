@@ -21,7 +21,9 @@ export function StorageControlPanel({ isDarkMode = true }: StorageControlPanelPr
   };
 
   const handleExport = () => {
-    shareEngine.exportLocalLibraryToFile();
+    const res = shareEngine.exportLocalLibraryToFile();
+    setSuccessStatus(res.message);
+    setTimeout(() => setSuccessStatus(null), 3000);
   };
 
   const handleImportClick = () => {
@@ -32,9 +34,9 @@ export function StorageControlPanel({ isDarkMode = true }: StorageControlPanelPr
     const file = e.target.files?.[0];
     if (!file) return;
 
-    shareEngine.importLibraryFromFile(file, (addedCount) => {
+    shareEngine.importLibraryFromFile(file, (res) => {
       refreshStats();
-      setSuccessStatus(`Successfully imported ${addedCount} new blueprint(s)!`);
+      setSuccessStatus(res.message);
       setTimeout(() => setSuccessStatus(null), 3500);
     });
 

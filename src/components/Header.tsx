@@ -1,7 +1,7 @@
 import React from 'react';
 import { QueryMindLogo } from './QueryMindLogo';
 import { Dataset, ApiKeyConfig } from '../types';
-import { Key, Sun, Moon, Menu, Upload, ShieldCheck } from 'lucide-react';
+import { Key, Sun, Moon, Menu, Upload, ShieldCheck, Presentation } from 'lucide-react';
 
 interface HeaderProps {
   activeDataset: Dataset | null;
@@ -12,6 +12,8 @@ interface HeaderProps {
   apiKeyConfig: ApiKeyConfig;
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
+  isPresentationMode?: boolean;
+  onTogglePresentationMode?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +25,8 @@ export const Header: React.FC<HeaderProps> = ({
   apiKeyConfig,
   isDarkMode,
   onToggleDarkMode,
+  isPresentationMode = false,
+  onTogglePresentationMode,
 }) => {
   const hasKey = Boolean(apiKeyConfig.key && apiKeyConfig.key.trim().length > 0);
 
@@ -100,6 +104,29 @@ export const Header: React.FC<HeaderProps> = ({
           <Upload className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Upload</span>
         </button>
+
+        {/* Presentation View Toggle */}
+        {onTogglePresentationMode && (
+          <button
+            type="button"
+            onClick={onTogglePresentationMode}
+            className={`btn-interactive flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-fast focus-visible:outline-none cursor-pointer ${
+              isPresentationMode
+                ? 'bg-accent/15 border border-accent/40 text-accent font-semibold shadow-2xs'
+                : 'border border-border-strong bg-surface-secondary text-text-secondary hover:text-text-primary hover:border-accent'
+            }`}
+            title={
+              isPresentationMode
+                ? 'Exit Presentation Mode (Show SQL code & traces)'
+                : 'Enable Presentation Mode (Hide SQL & technical traces for executive review)'
+            }
+          >
+            <Presentation className="w-3.5 h-3.5 text-accent" />
+            <span className="hidden sm:inline">
+              {isPresentationMode ? 'Executive View' : 'Present'}
+            </span>
+          </button>
+        )}
 
         {/* BYOK Key */}
         <button

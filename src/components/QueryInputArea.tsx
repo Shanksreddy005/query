@@ -35,6 +35,27 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
     }
   }, [query]);
 
+  // Global shortcut to focus query textarea (⌘K or /)
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        textareaRef.current?.focus();
+        textareaRef.current?.select();
+      } else if (
+        e.key === '/' &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA' &&
+        !document.activeElement?.getAttribute('contenteditable')
+      ) {
+        e.preventDefault();
+        textareaRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKey);
+    return () => window.removeEventListener('keydown', handleGlobalKey);
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
       e.preventDefault();
@@ -142,15 +163,36 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
             background: isDarkMode ? 'rgba(30,27,24,0.5)' : 'rgba(237,233,226,0.5)',
           }}
         >
-          <div className="flex items-center gap-1.5 text-text-muted font-medium select-none">
-            <span className="hidden sm:inline">Press</span>
-            <kbd
-              className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
-              style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
-            >
-              ⌘ Enter
-            </kbd>
-            <span className="hidden sm:inline text-text-muted opacity-60">to run</span>
+          <div className="flex items-center gap-3 text-text-muted font-medium select-none flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="hidden sm:inline">Press</span>
+              <kbd
+                className="px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                ⌘ Enter
+              </kbd>
+              <span className="hidden sm:inline text-text-muted opacity-60">to run</span>
+            </div>
+
+            <span className="hidden md:inline text-border-strong opacity-40">|</span>
+
+            <div className="hidden md:flex items-center gap-1 text-[11px] text-text-muted opacity-75">
+              <span>Focus with</span>
+              <kbd
+                className="px-1 py-0.5 rounded text-[9px] font-mono font-semibold"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                ⌘K
+              </kbd>
+              <span>or</span>
+              <kbd
+                className="px-1 py-0.5 rounded text-[9px] font-mono font-semibold"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border-strong)', color: 'var(--text-secondary)' }}
+              >
+                /
+              </kbd>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

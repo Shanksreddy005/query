@@ -53,6 +53,9 @@ export default function App() {
   // Mobile sidebar state
   const [isOpenMobileSidebar, setIsOpenMobileSidebar] = useState<boolean>(false);
 
+  // Executive presentation view mode
+  const [isPresentationMode, setIsPresentationMode] = useState<boolean>(false);
+
   // Register initial dataset into SQL engine on mount
   useEffect(() => {
     if (activeDataset) {
@@ -264,6 +267,8 @@ export default function App() {
         apiKeyConfig={apiKeyConfig}
         isDarkMode={isDarkMode}
         onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+        isPresentationMode={isPresentationMode}
+        onTogglePresentationMode={() => setIsPresentationMode(!isPresentationMode)}
       />
 
       {/* Main Layout Area */}
@@ -349,6 +354,9 @@ export default function App() {
               isDarkMode={isDarkMode}
               onUpdateSql={handleUpdateSql}
               onOpenAuditor={() => setIsAuditorOpen(true)}
+              dataset={activeDataset}
+              isPresentationMode={isPresentationMode}
+              onTogglePresentationMode={() => setIsPresentationMode(!isPresentationMode)}
             />
           )}
         </main>

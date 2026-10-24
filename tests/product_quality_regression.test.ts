@@ -125,8 +125,8 @@ describe('Phase 8 — Regression Test Suite', () => {
       assert.ok(curated, 'Curated match expected');
       assert.strictEqual(curated.status, 'verified');
       assert.strictEqual(curated.chartSuggestion, undefined, 'Raw customer lookup must have table primary, not donut chart');
-      assert.ok(curated.insight.summary.includes('Seven customers match'));
-      assert.ok(curated.insight.highlights.some((h) => h.includes('390 to 6,800')));
+      assert.ok(curated.insight?.summary?.includes('Seven customers match'));
+      assert.ok(curated.insight?.highlights?.some((h) => h.includes('390 to 6,800')));
     });
   });
 
@@ -219,7 +219,7 @@ describe('Phase 8 — Regression Test Suite', () => {
       assert.strictEqual(result.status, 'needs_clarification');
       assert.ok(result.clarificationMessage?.includes('lost MRR'));
       assert.strictEqual(result.sql, '', 'Must not execute or generate substitute SQL');
-      assert.ok(result.insight.summary.includes('Clarification needed'));
+      assert.ok(result.insight?.summary?.includes('Clarification needed'));
     });
 
     it('identifies undefined net operating margin in e-commerce schema', () => {
