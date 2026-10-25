@@ -29,6 +29,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { LocalQueryStorage } from '../services/localQueryStorage';
+import { formatSanitizedCsv } from '../services/csvExportSanitizer';
 import { Dataset } from '../types';
 
 interface ResultsViewProps {
@@ -247,20 +248,8 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
 
   const handleExportCsv = () => {
     if (!result.rows || result.rows.length === 0) return;
-    const cols = result.columns;
-    const csvRows = [
-      cols.join(','),
-      ...result.rows.map((row) =>
-        cols.map((c) => {
-          const val = row[c] ?? '';
-          if (typeof val === 'string' && val.includes(',')) {
-            return `"${val.replace(/"/g, '""')}"`;
-          }
-          return val;
-        }).join(',')
-      ),
-    ];
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const csvContent = formatSanitizedCsv(result.columns, result.rows);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);

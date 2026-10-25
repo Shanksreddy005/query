@@ -1,5 +1,14 @@
 import { ColumnMeta, Dataset } from '../types';
 
+function sanitizeColumnName(rawKey: string): string {
+  let clean = rawKey.trim();
+  // Strip spreadsheet formula injection prefixes (=, +, -, @)
+  clean = clean.replace(/^[=+\-@\t\r]+/, '');
+  // Sanitize non-alphanumeric chars for valid SQL identifier compatibility
+  clean = clean.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+  return clean || 'column';
+}
+
 /**
  * Analyzes array of records and infers ColumnMeta (type, samples, stats).
  */
@@ -17,10 +26,22 @@ export function inferDatasetSchema(records: Record<string, any>[], tableName: st
   }
 
   const firstRow = records[0];
-  const keys = Object.keys(firstRow);
+  const rawKeys = Object.keys(firstRow);
+  const keyMap = new Map<string, string>();
+  rawKeys.forEach((k) => keyMap.set(k, sanitizeColumnName(k)));
+
+  const sanitizedRecords = records.map((row) => {
+    const newRow: Record<string, any> = {};
+    for (const [oldKey, newKey] of keyMap.entries()) {
+      newRow[newKey] = row[oldKey];
+    }
+    return newRow;
+  });
+
+  const keys = Array.from(new Set(keyMap.values()));
 
   const columns: ColumnMeta[] = keys.map((key) => {
-    const values = records.map((r) => r[key]).filter((v) => v !== undefined && v !== null && v !== '');
+    const values = sanitizedRecords.map((r) => r[key]).filter((v) => v !== undefined && v !== null && v !== '');
     const uniqueValues = Array.from(new Set(values));
     const nonNullCount = values.length;
 
@@ -71,9 +92,9 @@ export function inferDatasetSchema(records: Record<string, any>[], tableName: st
     id: tableName,
     name: datasetName,
     tableName,
-    rowCount: records.length,
+    rowCount: sanitizedRecords.length,
     columns,
-    data: records,
+    data: sanitizedRecords,
     uploadedAt: 'Preloaded Demo',
   };
 }

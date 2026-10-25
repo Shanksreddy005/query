@@ -8,6 +8,12 @@ export interface ValidationResult {
   passedChecks?: string[];
   needsClarification?: boolean;
   clarificationMessage?: string;
+  astAnalysis?: {
+    statementType: 'SELECT' | 'WITH';
+    tableReferences: string[];
+    hasComments: boolean;
+    parenthesesBalanced: boolean;
+  };
 }
 
 const FORBIDDEN_SQL_PATTERNS = [
@@ -22,7 +28,120 @@ const FORBIDDEN_SQL_PATTERNS = [
   /\bEXECUTE\b/i,
   /\bGRANT\b/i,
   /\bREVOKE\b/i,
+  /\bATTACH\b/i,
+  /\bDETACH\b/i,
+  /\bPRAGMA\b/i,
+  /\bINSTALL\b/i,
+  /\bLOAD\b/i,
+  /\bCOPY\b/i,
+  /\bEXPORT\b/i,
+  /\bIMPORT\b/i,
+  /\bCALL\b/i,
+  /\bSYSTEM\b/i,
+  /\bREAD_CSV\b/i,
+  /\bREAD_PARQUET\b/i,
+  /\bREAD_JSON\b/i,
+  /\bREAD_NDJSON\b/i,
+  /\bSCAN_CSV\b/i,
+  /\bHTTPFS\b/i,
+  /\bGLOB\b/i,
 ];
+
+/**
+ * Strips comments from SQL and detects comment presence.
+ * Prevents hidden payload injection or comment-based bypasses.
+ */
+export function analyzeAndStripComments(sql: string): { cleanSql: string; hasComments: boolean } {
+  let hasComments = false;
+  // Multi-line comments /* ... */
+  let clean = sql.replace(/\/\*[\s\S]*?\*\//g, () => {
+    hasComments = true;
+    return ' ';
+  });
+  // Single-line comments -- ...
+  clean = clean.replace(/--.*$/gm, () => {
+    hasComments = true;
+    return ' ';
+  });
+  return { cleanSql: clean.trim(), hasComments };
+}
+
+/**
+ * Checks parentheses balance in SQL statement to catch malformed AST structures or truncation.
+ */
+export function checkParenthesesBalance(sql: string): boolean {
+  let depth = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const prevChar = i > 0 ? sql[i - 1] : '';
+
+    if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      continue;
+    }
+    if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      continue;
+    }
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === '(') depth++;
+      else if (char === ')') {
+        depth--;
+        if (depth < 0) return false;
+      }
+    }
+  }
+  return depth === 0;
+}
+
+/**
+ * Counts top-level statements separated by unquoted semicolons.
+ * Correctly ignores semicolons inside single or double-quoted string literals.
+ */
+export function countSqlStatements(sql: string): number {
+  let count = 0;
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+  let currentStatementTokens = 0;
+
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const prevChar = i > 0 ? sql[i - 1] : '';
+
+    if (char === "'" && prevChar !== '\\' && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+      currentStatementTokens++;
+      continue;
+    }
+    if (char === '"' && prevChar !== '\\' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+      currentStatementTokens++;
+      continue;
+    }
+
+    if (!inSingleQuote && !inDoubleQuote) {
+      if (char === ';') {
+        if (currentStatementTokens > 0) {
+          count++;
+          currentStatementTokens = 0;
+        }
+      } else if (!/\s/.test(char)) {
+        currentStatementTokens++;
+      }
+    } else {
+      currentStatementTokens++;
+    }
+  }
+
+  if (currentStatementTokens > 0) {
+    count++;
+  }
+
+  return count;
+}
 
 /**
  * Checks whether a requested metric is defined and available in the dataset schema.
@@ -73,6 +192,98 @@ export function checkMetricAvailability(
 }
 
 /**
+ * Standalone SQL safety and boundary validator used across all runtime execution paths.
+ * Enforces:
+ * 1. Read-only statement boundaries (SELECT or WITH).
+ * 2. AST structural parenthesis balance.
+ * 3. Rejection of forbidden data-modification or system keywords.
+ * 4. Rejection of external filesystem functions (read_csv, read_parquet, httpfs, etc.).
+ * 5. Rejection of internal DuckDB catalogs and introspection views.
+ * 6. Quote-aware single-statement verification.
+ * 7. Dataset table reference isolation (when activeTableName is provided).
+ */
+export function validateSqlSafety(
+  sql: string,
+  activeTableName?: string
+): { isValid: boolean; errors: string[] } {
+  const errors: string[] = [];
+  const { cleanSql } = analyzeAndStripComments(sql);
+  const trimmedSql = cleanSql.trim();
+  const upperSql = trimmedSql.toUpperCase();
+
+  // 1. AST Structural Checks: Parentheses balance
+  if (!checkParenthesesBalance(trimmedSql)) {
+    errors.push('AST Structural Error: Unbalanced parentheses detected in SQL expression.');
+  }
+
+  // 2. Read-Only Safety Guard
+  const statementType: 'SELECT' | 'WITH' | null = upperSql.startsWith('SELECT')
+    ? 'SELECT'
+    : upperSql.startsWith('WITH')
+    ? 'WITH'
+    : null;
+
+  if (!statementType) {
+    errors.push('Security Guard: Query must begin with SELECT or WITH (strictly read-only analytical queries permitted).');
+  }
+
+  // 3. Disallowed SQL keywords or external file access
+  for (const forbidden of FORBIDDEN_SQL_PATTERNS) {
+    if (forbidden.test(sql) || forbidden.test(trimmedSql)) {
+      errors.push(`Security Guard: Disallowed SQL keyword or external file operation detected (${forbidden.source.replace(/\\b/g, '')}).`);
+    }
+  }
+
+  // 4. System catalog protection (duckdb_tables, information_schema, pg_catalog, etc.)
+  const FORBIDDEN_CATALOGS = [
+    /\bduckdb_[a-zA-Z0-9_]+\b/i,
+    /\binformation_schema\b/i,
+    /\bpg_catalog\b/i,
+    /\bsqlite_master\b/i,
+    /\bsqlite_temp_master\b/i,
+  ];
+  for (const catalog of FORBIDDEN_CATALOGS) {
+    if (catalog.test(trimmedSql)) {
+      errors.push('Security Guard: Direct access to system catalogs, internal schemas, and metadata views is prohibited.');
+      break;
+    }
+  }
+
+  // 5. Check for multiple semicolon-separated statements (quote-aware scanner)
+  const statementCount = countSqlStatements(trimmedSql);
+  if (statementCount > 1) {
+    errors.push('Security Guard: Only single-statement queries are permitted.');
+  }
+
+  // 6. Strict Table Name & Reference Verification (if activeTableName provided)
+  if (activeTableName) {
+    const cleanActive = activeTableName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    const validTableNames = [
+      cleanActive,
+      'dataset',
+      `"${cleanActive}"`,
+      '"dataset"',
+    ];
+    if (statementType === 'WITH') {
+      const cteMatches = trimmedSql.matchAll(/(?:WITH|,)\s*([a-zA-Z0-9_]+)\s+AS\s*\(/gi);
+      for (const m of cteMatches) {
+        validTableNames.push(m[1].toLowerCase());
+      }
+    }
+    const tableMatches = Array.from(trimmedSql.matchAll(/(?:FROM|JOIN)\s+([a-zA-Z0-9_"']+)/gi));
+    for (const match of tableMatches) {
+      const rawTable = match[1].trim().toLowerCase();
+      const cleanTable = rawTable.replace(/["'`]/g, '');
+      if (!validTableNames.includes(rawTable) && !validTableNames.includes(cleanTable) && !rawTable.startsWith('ranked_')) {
+        errors.push(`Table Security Error: Query references table "${cleanTable}" instead of active dataset "${activeTableName}".`);
+      }
+    }
+  }
+
+  return { isValid: errors.length === 0, errors };
+}
+
+/**
  * Validates generated SQL against the QueryPlan, dataset schema, and user question before execution.
  * Enforces the strict analytical contract (Phase 2).
  */
@@ -85,30 +296,68 @@ export function validateSqlIntent(
   const errors: string[] = [];
   const warnings: string[] = [];
   const passedChecks: string[] = [];
-  const trimmedSql = sql.trim();
+  const { cleanSql, hasComments } = analyzeAndStripComments(sql);
+  const trimmedSql = cleanSql.trim();
   const upperSql = trimmedSql.toUpperCase();
   const lowerSql = trimmedSql.toLowerCase();
 
-  // 1. Safety Guard
-  if (!upperSql.startsWith('SELECT') && !upperSql.startsWith('WITH')) {
-    errors.push('Security Guard: Query must begin with SELECT or WITH (read-only query permitted).');
-  } else {
-    passedChecks.push('Read-only statement safety');
+  // 1. AST Structural Checks: Parentheses balance
+  const balanced = checkParenthesesBalance(trimmedSql);
+  if (!balanced) {
+    errors.push('AST Structural Error: Unbalanced parentheses detected in SQL expression.');
   }
 
+  // 2. Read-Only Safety Guard
+  const statementType: 'SELECT' | 'WITH' | null = upperSql.startsWith('SELECT')
+    ? 'SELECT'
+    : upperSql.startsWith('WITH')
+    ? 'WITH'
+    : null;
+
+  if (!statementType) {
+    errors.push('Security Guard: Query must begin with SELECT or WITH (strictly read-only analytical queries permitted).');
+  } else {
+    passedChecks.push(`Read-only statement safety (${statementType})`);
+  }
+
+  // Check forbidden patterns against both raw and stripped SQL
   for (const forbidden of FORBIDDEN_SQL_PATTERNS) {
-    if (forbidden.test(trimmedSql)) {
-      errors.push(`Security Guard: Disallowed SQL keyword detected (${forbidden.source.replace(/\\b/g, '')}).`);
+    if (forbidden.test(sql) || forbidden.test(trimmedSql)) {
+      errors.push(`Security Guard: Disallowed SQL keyword or external file operation detected (${forbidden.source.replace(/\\b/g, '')}).`);
     }
   }
 
-  // Check for multiple semicolon-separated statements
-  const statements = trimmedSql.split(';').map((s) => s.trim()).filter((s) => s.length > 0);
-  if (statements.length > 1) {
+  // System catalog protection (duckdb_tables, information_schema, pg_catalog, etc.)
+  const FORBIDDEN_CATALOGS = [
+    /\bduckdb_[a-zA-Z0-9_]+\b/i,
+    /\binformation_schema\b/i,
+    /\bpg_catalog\b/i,
+    /\bsqlite_master\b/i,
+    /\bsqlite_temp_master\b/i,
+  ];
+  for (const catalog of FORBIDDEN_CATALOGS) {
+    if (catalog.test(trimmedSql)) {
+      errors.push('Security Guard: Direct access to system catalogs, internal schemas, and metadata views is prohibited.');
+      break;
+    }
+  }
+
+  // Check for multiple semicolon-separated statements (quote-aware scanner)
+  const statementCount = countSqlStatements(trimmedSql);
+  if (statementCount > 1) {
     errors.push('Security Guard: Only single-statement queries are permitted.');
   }
 
-  // 2. Metric Availability Check (Test Group C)
+  // Extract CTE names if WITH statement
+  const cteNames: string[] = [];
+  if (statementType === 'WITH') {
+    const cteMatches = trimmedSql.matchAll(/(?:WITH|,)\s*([a-zA-Z0-9_]+)\s+AS\s*\(/gi);
+    for (const m of cteMatches) {
+      cteNames.push(m[1].toLowerCase());
+    }
+  }
+
+  // 3. Metric Availability Check (Test Group C)
   let needsClarification = false;
   let clarificationMessage: string | undefined;
 
@@ -121,26 +370,32 @@ export function validateSqlIntent(
     }
   }
 
-  // 3. Table Name Check
+  // 4. Strict Table Name & Reference Verification
   const validTableNames = [
     schema.tableName.toLowerCase(),
     'dataset',
     `"${schema.tableName.toLowerCase()}"`,
     '"dataset"',
+    ...cteNames,
   ];
-  const fromMatches = trimmedSql.match(/FROM\s+([a-zA-Z0-9_"']+)/gi) || [];
+
+  const tableMatches = Array.from(trimmedSql.matchAll(/(?:FROM|JOIN)\s+([a-zA-Z0-9_"']+)/gi));
+  const referencedTables: string[] = [];
   let referencesValidTable = false;
-  for (const match of fromMatches) {
-    const rawTable = match.replace(/FROM\s+/i, '').trim().toLowerCase();
+
+  for (const match of tableMatches) {
+    const rawTable = match[1].trim().toLowerCase();
     const cleanTable = rawTable.replace(/["'`]/g, '');
+    referencedTables.push(cleanTable);
     if (validTableNames.includes(rawTable) || validTableNames.includes(cleanTable) || rawTable.startsWith('ranked_')) {
       referencesValidTable = true;
     }
   }
-  if (fromMatches.length > 0 && !referencesValidTable) {
-    warnings.push(`Query may not reference active table "${schema.tableName}".`);
+
+  if (tableMatches.length > 0 && !referencesValidTable) {
+    errors.push(`Table Security Error: Query references table "${referencedTables.join(', ')}" instead of active dataset "${schema.tableName}".`);
   } else {
-    passedChecks.push('Target table references verified');
+    passedChecks.push(`Target table references verified (${schema.tableName})`);
   }
 
   // 4. Plan Intent Conformance
@@ -403,6 +658,12 @@ export function validateSqlIntent(
     passedChecks,
     needsClarification,
     clarificationMessage,
+    astAnalysis: {
+      statementType: statementType || 'SELECT',
+      tableReferences: referencedTables,
+      hasComments,
+      parenthesesBalanced: balanced,
+    },
   };
 }
 

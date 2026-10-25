@@ -44,6 +44,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       : DEFAULT_MODELS[config.provider || 'gemini']
   );
   const [showKey, setShowKey] = useState<boolean>(false);
+  const [rememberKey, setRememberKey] = useState<boolean>(Boolean(config.rememberKey));
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState<string>('');
 
@@ -73,7 +74,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     try {
       if (provider === 'gemini') {
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${key.trim()}`
+          'https://generativelanguage.googleapis.com/v1beta/models',
+          {
+            headers: {
+              'x-goog-api-key': key.trim(),
+            },
+          }
         );
         if (!res.ok) {
           const body = await res.text();
@@ -113,16 +119,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
       provider,
       key: key.trim(),
       model: model || DEFAULT_MODELS[provider],
+      rememberKey,
     });
     onClose();
   };
 
   const handleClear = () => {
     setKey('');
+    setRememberKey(false);
     onSave({
       provider,
       key: '',
       model: DEFAULT_MODELS[provider],
+      rememberKey: false,
     });
     setTestStatus('idle');
     setTestMessage('');
@@ -368,6 +377,19 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               <Info className="w-3 h-3 flex-shrink-0 text-text-muted" />
               <span>{currentProviderConfig.billingNotice}</span>
             </p>
+
+            {/* Persistent storage opt-in checkbox */}
+            <div className="pt-2 border-t border-border-subtle/50 mt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-text-secondary select-none hover:text-text-primary transition-colors">
+                <input
+                  type="checkbox"
+                  checked={rememberKey}
+                  onChange={(e) => setRememberKey(e.target.checked)}
+                  className="rounded border-border-strong text-accent focus:ring-accent w-3.5 h-3.5"
+                />
+                <span>Remember API key in browser on this device (opt-in · unchecked keeps key in volatile session memory only)</span>
+              </label>
+            </div>
 
             {/* Test status banner */}
             {testStatus === 'success' && (

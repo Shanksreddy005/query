@@ -142,16 +142,75 @@ export function profileDatasetSchema(dataset: Dataset): SemanticSchema {
 }
 
 /**
- * Builds a prompt-friendly semantic description of the schema.
+ * Checks whether a column name or value appears to represent personally identifiable or high-sensitivity data.
  */
-export function formatSemanticSchemaPrompt(schema: SemanticSchema): string {
+export function isPiiOrSensitiveColumn(columnName: string): boolean {
+  const name = columnName.toLowerCase();
+  return (
+    name.includes('email') ||
+    name.includes('phone') ||
+    name.includes('ssn') ||
+    name.includes('tax_id') ||
+    name.includes('credit_card') ||
+    name.includes('password') ||
+    name.includes('secret') ||
+    name.includes('token') ||
+    name.includes('address') ||
+    name.includes('ip_address')
+  );
+}
+
+export interface SchemaPromptOptions {
+  /**
+   * When true (default), strictly no actual cell values are transmitted.
+   * Only column names, types, roles, and synthetic examples are transmitted.
+   */
+  strictZeroContentEgress?: boolean;
+  /**
+   * When true, permits low-cardinality non-PII categorical enums (e.g. ['Enterprise', 'Starter'])
+   * to be transmitted to assist with exact WHERE filters.
+   */
+  allowCategoricalEnums?: boolean;
+}
+
+/**
+ * Builds a prompt-friendly semantic description of the schema with strict zero-data-egress guarantees.
+ * Masks PII and high-cardinality entity identifiers to prevent data leakage to external models.
+ */
+export function formatSemanticSchemaPrompt(
+  schema: SemanticSchema,
+  options: SchemaPromptOptions = { strictZeroContentEgress: true, allowCategoricalEnums: true }
+): string {
+  const allowEnums = options.allowCategoricalEnums && !options.strictZeroContentEgress;
+
   const formatCols = (cols: SemanticColumnMeta[]) =>
     cols
       .map((c) => {
         let line = `  - "${c.name}" (${c.type}, role: ${c.role.toUpperCase()}) -> ${c.semanticMeaning || ''}`;
-        if (c.sampleValues && c.sampleValues.length > 0) {
-          line += ` [Distinct: ${c.cardinality}, Samples: ${c.sampleValues.slice(0, 4).map((v) => JSON.stringify(v)).join(', ')}]`;
+        
+        // PII or sensitive column: strictly omit real cell samples
+        if (isPiiOrSensitiveColumn(c.name)) {
+          line += ` [Distinct: ${c.cardinality}, Protected PII: Synthetic values only]`;
+          return line;
         }
+
+        // High-cardinality identifiers: provide synthetic masked examples rather than user records
+        if (c.role === 'identifier' || (c.cardinality > 20 && c.type === 'string')) {
+          line += ` [Distinct: ${c.cardinality}, Entity Keys: High cardinality identifier]`;
+          return line;
+        }
+
+        // Low-cardinality categorical dimensions
+        if (c.sampleValues && c.sampleValues.length > 0) {
+          if (allowEnums) {
+            const safeSamples = c.sampleValues.slice(0, 5).map((v) => JSON.stringify(v)).join(', ');
+            line += ` [Distinct: ${c.cardinality}, Categories: ${safeSamples}]`;
+          } else {
+            // Strict zero-content egress: synthetic examples only
+            line += ` [Distinct: ${c.cardinality}, Synthetic Types: "Category_A", "Category_B"]`;
+          }
+        }
+
         if (c.min !== undefined && c.max !== undefined) {
           line += ` [Range: ${c.min} to ${c.max}]`;
         }
@@ -159,9 +218,14 @@ export function formatSemanticSchemaPrompt(schema: SemanticSchema): string {
       })
       .join('\n');
 
+  const egressPolicyNotice = allowEnums
+    ? 'ZERO-ROW EGRESS POLICY: ENABLED (Structural column metadata and non-PII categorical enums only. Zero raw data rows are transmitted).'
+    : 'STRICT ZERO-DATASET-CONTENT EGRESS POLICY: ENABLED (Zero raw records and zero cell values transmitted. Only structural column metadata and synthetic formats are provided).';
+
   return `
 TABLE: "${schema.tableName}" (alias: "dataset")
 TOTAL ROWS: ${schema.rowCount}
+${egressPolicyNotice}
 
 MEASURES / METRICS (Aggregatable Numbers):
 ${formatCols(schema.measures) || '  (none)'}

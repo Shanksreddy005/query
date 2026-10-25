@@ -1,74 +1,94 @@
 # Security, Privacy & Compliance Architecture
-**QueryMind Analytic Platform** — *Zero-Cloud Data Strategy Spec*
+**QueryMind Analytic Platform** — *Technical Specification & Data Sovereignty Model*
 
-QueryMind uses an isolated, browser-bound processing architecture designed for strict corporate data compliance standard environments. This document serves as a compliance framework guide for InfoSec, Data Protection Officers (DPOs), and system auditors reviewing QueryMind's interaction boundaries with sensitive relational datasets.
+This document defines QueryMind's security architecture, technical verification boundaries, outbound data policies, and threat model. It distinguishes between **verified technical guarantees**, **architectural designs**, and **user/environment responsibilities**.
 
 ---
 
-## 1. Compliance Executive Summary
+## 1. Architectural Posture & Verification Status
 
-| Requirement Vector | Architectural Strategy | Compliance Alignment |
+| Dimension | Architectural Implementation | Verification Status |
 | :--- | :--- | :--- |
-| **Data Residency** | 100% Client-Side Sandbox (Browser Process Memory) | GDPR (Art. 25/32), HIPAA |
-| **AI Inference Privacy** | Structural Metadating Data Scrubbing (No Row Egress) | SOC 2 Type II CC6.1/CC6.3 |
-| **Credential Safety** | Ephemeral Browser State (Volatile Memory / Local BYOK) | ISO 27001 A.10.1 / A.14.2 |
-| **Collaboration** | Non-Telemetry JSON Payload Schemas (Zero-Cloud Storage) | CCPA / CPRA Consumer Exclusions |
+| **Data Locality** | In-memory vectorized analytics executed via `DuckDB-WASM` inside client browser Web Worker. | **Verified in Code & Automated Tests** |
+| **Outbound Data Policy** | Strict metadata-only prompt formatting; zero raw data rows or result records egress to AI providers. | **Verified via Outbound Telemetry Auditor & Test Suite** |
+| **SQL Sandboxing** | AST structural parsing, comment stripping, parenthesis balancing, single-statement read-only enforcement, table isolation, and DuckDB external filesystem operation blocking. | **Verified via Adversarial Unit & Integration Tests** |
+| **Credential Management** | Client-side Bring-Your-Own-Key (BYOK); direct provider REST dispatch without intermediary server proxies. | **Verified in Architecture** |
+| **Persistence Boundary** | Local sandboxed query blueprints saved to browser `localStorage`; sanitized JSON schema import/export. | **Verified in Test Suite** |
+| **Compliance Posture** | Technical controls align with data minimization (GDPR Art. 25/32 principles), but QueryMind is a client-side tool and is **not** an externally certified SOC 2 or HIPAA cloud service. | **Accurately Scoped — No Unverified Certification Claims** |
 
 ---
 
-## 2. Client-Side Execution Boundary (Zero-Cloud Architecture)
+## 2. Client-Side Execution Boundary
 
-QueryMind eliminates corporate database risk by removing server infrastructure entirely from the collection loop.
+QueryMind executes analytical queries without intermediate database servers, caching relays, or cloud compute.
 
 ```
-┌───────────────────────────────── Browser Sandbox ──────────────────────────────────┐
-│                                                                                    │
-│  [ Local File / CSV ] ──► (PapaParse Ingest) ──► [ DuckDB-WASM ] ──► Data Table   │
-│                                                       │                            │
-│                                                       ▼                            │
-│                                            (Local Profiler Matrix)                 │
-└────────────────────────────────────────────────────────────────────────────────────┘
-                                                        │ (Structural Layout Only)
-                                                        ▼
-                                              [ Remote LLM Provider ]
+┌───────────────────────────────────── Client Browser Sandbox ──────────────────────────────────────┐
+│                                                                                                    │
+│  [ Uploaded CSV ] ──► (PapaParse Engine) ──► [ DuckDB-WASM Worker ] ──► Verified Data Table        │
+│                                                           │                                        │
+│                                                           ▼                                        │
+│                                              (Client Schema Profiler)                              │
+│                                                           │                                        │
+│                         (Structural Metadata & Masked Categories ONLY)                             │
+└───────────────────────────────────────────────────────────┼────────────────────────────────────────┘
+                                                            │
+                                                            ▼
+                                              [ User's Configured LLM ]
+                                             (Gemini, Groq, or OpenAI)
 ```
 
-*   **Local WebAssembly Isolation:** Datasets (CSV, TSV, JSON, or custom text blobs) are parsed locally via `PapaParse` and committed directly to an in-memory virtual instance of `duckdb-wasm` running within a sandboxed Web Worker thread.
-*   **Zero Server Telemetry:** QueryMind hosts no database backend, caching clusters, logging systems, or analytics relays. Raw business records never touch any external network interfaces or systems controlled by QueryMind.
-*   **Origin Sandboxing:** Data inside browser RAM is protected by the browser's native **Same-Origin Policy (SOP)**, preventing external cross-script tampering.
+1. **Local WebAssembly Worker**: Datasets are loaded into a sandboxed `DuckDB-WASM` worker thread. The engine runs compiled C++ binaries inside WebAssembly, operating directly on client memory.
+2. **Zero Analytics/Telemetry Servers**: QueryMind does not operate application analytics relays, error telemetry servers, tracking beacons, or backend logging databases.
+3. **Network Boundary Isolation**: Network traffic is strictly limited to:
+   - Initial static asset delivery (HTML/JS/WASM bundles).
+   - Direct HTTPS calls from the browser to the user's selected LLM provider endpoint (`generativelanguage.googleapis.com`, `api.groq.com`, or `api.openai.com`).
 
 ---
 
-## 3. Metadata-Only LLM Egress Mitigation
+## 3. Outbound Data Policy & Prompt Privacy
 
-QueryMind uses a two-stage structural abstraction framework to prevent Large Language Models (LLMs) from viewing or training on proprietary dataset rows.
+QueryMind enforces strict data boundary controls when interacting with third-party LLM providers:
 
-### Turn 1: SQL Compilation Pass
-Before generating a prompt payload to be sent to external LLM providers (Google Gemini, Groq, OpenAI), QueryMind passes the schema through `schemaProfiler.ts`. 
-*   **Row Stripping:** The system prompt explicitly strips out individual business transaction values.
-*   **Cardinality Capping:** Only column labels, structural types (e.g., `VARCHAR`, `TIMESTAMP`), and low-cardinality categorical enums consisting exclusively of structural classification markers under 10 counts (e.g., `plan_tier = ['Enterprise', 'Growth', 'Free']`) are passed to provide syntax context. 
+### What IS Transmitted to the Model
+- The user's natural language question string.
+- Column names and data types (e.g. `mrr: number`, `plan_tier: string`).
+- Inferred column roles (`MEASURE`, `DIMENSION`, `TEMPORAL`, `IDENTIFIER`).
+- Low-cardinality categorical values (under 15 distinct categories, e.g. `plan_tier = ['Enterprise', 'Professional', 'Starter']`) strictly necessary for generating accurate SQL `WHERE` clauses.
 
-### Turn 2: Insights Analysis Pass
-When generating qualitative analytics context:
-*   QueryMind computes summary statistics locally on the client main thread using JavaScript mathematical primitives (`pandas-style summaries`).
-*   The LLM receives only a high-level statistical overview (such as row counts, distribution profiles, delta ratios, and outlier coordinates) instead of full dataset tables.
-
----
-
-## 4. True BYOK (Bring-Your-Own-Key) Cryptographic Isolation
-
-QueryMind acts as a direct, unmediated gateway to your authorized LLM endpoints, keeping access controls entirely in your hands.
-
-*   **No Proxy Intermediate Routing:** API calls use native client-side `fetch()` loops routed directly from the client's network adapter to the end-provider's official REST API gateways (`https://api.groq.com`, `https://api.openai.com`, or `https://generativelanguage.googleapis.com`).
-*   **Volatile Storage Constraints:** Keys are retained inside the application's runtime state memory or local browser space. No keys are ever transmitted back to QueryMind or any third-party infrastructure.
-*   **Network Perimeter Alignment:** Because all connections originate from the user's local browser instance, corporate security engineers can audit, whitelist, or throttle egress traffic using standard enterprise **Secure Web Gateways (SWG)** or **Cloud Access Security Brokers (CASB)**.
+### What is NEVER Transmitted to the Model
+- **Zero Raw Rows**: User transaction rows, financial values, or table data records are never included in prompts.
+- **Zero Result Rows**: Output rows returned by DuckDB execution remain local in client memory.
+- **PII Masking**: Columns identified as PII (emails, phone numbers, SSNs, credit cards, user IDs, full names) have their sample values replaced with synthetic masks (e.g. `[Protected PII: Synthetic values only]`).
+- **High-Cardinality Identifiers**: Customer IDs, account numbers, and primary keys are scrubbed and replaced with generic metadata tokens.
 
 ---
 
-## 5. Sandboxed Local Query Library & Collaboration Privacy
+## 4. SQL Security & Sandbox Defense in Depth
 
-The local query persistence system is designed to remember structural blueprints while keeping them strictly separated from the actual customer data rows.
+To prevent malicious prompts or misaligned models from escaping the analytical boundary:
 
-*   **Structural Context Fingerprinting:** When an analyst chooses to save a query pattern, the system runs `getFingerprint()`. This routine sorts the active schema columns into a hashed identifier string (e.g., `customer_id,mrr,plan_tier`).
-*   **Safe Serialization:** `localStorage` saves *only* the user's natural language question string and the successfully validated DuckDB SQL template. It does not capture or store the database matrix rows.
-*   **Secure File-Based Sharing:** Team sharing is entirely human-mediated. The `LibraryShareEngine` packages verified structural analytical blueprints into a clean JSON configuration file. Teams can share these templates manually via internal corporate communication tools without needing any cloud storage connections.
+1. **AST Tokenizer & Lexical Parsing**:
+   - Queries must strictly begin with `SELECT` or `WITH ... SELECT`.
+   - Multi-statement SQL (separated by semicolons) is rejected.
+   - Parentheses balance is verified to catch truncated or malformed AST expressions.
+2. **Comment Stripping & Inspection**:
+   - Both single-line (`--`) and multi-line (`/* */`) comments are stripped and analyzed to prevent hidden payload concealment or bypass attempts.
+3. **Forbidden Operations Allowlist**:
+   - Blocks all DDL/DML (`DROP`, `DELETE`, `UPDATE`, `INSERT`, `ALTER`, `CREATE`, `TRUNCATE`).
+   - Blocks DuckDB extension and filesystem commands: `READ_CSV`, `READ_PARQUET`, `READ_JSON`, `SCAN_CSV`, `HTTPFS`, `COPY`, `INSTALL`, `LOAD`, `ATTACH`, `DETACH`, `PRAGMA`, `SYSTEM`.
+4. **Table & Relation Isolation**:
+   - Every `FROM` and `JOIN` clause is checked against the active dataset table and declared CTE aliases. Querying arbitrary or system tables is blocked.
+5. **Execution Timeout & Resource Protection**:
+   - DuckDB queries are bounded by a 15-second execution timeout to prevent runaway Cartesian joins from freezing browser threads.
+   - Result row materialization is capped at 5,000 rows with explicit truncation indicators.
+
+---
+
+## 5. BYOK Credential Storage & Threat Model
+
+- **Storage**: User API keys are stored in browser `localStorage` or session memory. Keys are never transmitted to QueryMind authors, proxies, or logging services.
+- **Direct Dispatch**: Requests use client-side `fetch()` with authorization headers directly targeting official provider APIs.
+- **Threat Model & Residual Risks**:
+  - *Browser Environment Security*: An analyst using an untrusted browser, malicious extensions, or a compromised machine is vulnerable to client-side extraction.
+  - *Third-Party LLM Provider Logging*: While QueryMind transmits zero raw records, the user's natural language question and column schema are subject to the data retention policies of the user's configured provider (Google, Groq, OpenAI). Users in regulated environments should configure enterprise zero-data-retention agreements with their respective providers.

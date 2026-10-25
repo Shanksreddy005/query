@@ -38,7 +38,10 @@ const MAX_AGENT_ROUNDS = 5;
  * Builds the comprehensive prompt for LLM SQL and Plan Generation.
  */
 function buildPromptSystem(schema: SemanticSchema): string {
-  const schemaText = formatSemanticSchemaPrompt(schema);
+  const schemaText = formatSemanticSchemaPrompt(schema, {
+    strictZeroContentEgress: true,
+    allowCategoricalEnums: false,
+  });
   const blueprintsText = getBlueprintPromptSection();
 
   return `You are QueryMind, an elite deterministic AI data analyst and SQL architect running in a 100% browser-native environment.
@@ -144,10 +147,13 @@ async function callGemini(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [{ role: 'user', parts: [{ text: prompt }] }],
           generationConfig: {
@@ -431,6 +437,21 @@ async function dispatchAiCall(
   const colMatches = Array.from(systemPrompt.matchAll(/"([a-zA-Z0-9_]+)"/g)).map((m) => m[1]);
   const schemaColumns = Array.from(new Set(colMatches));
 
+  // Construct exact wire payload sent to provider HTTP fetch
+  const wirePayload = provider === 'gemini'
+    ? JSON.stringify({
+        contents: [{ role: 'user', parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }] }],
+        generationConfig: { responseMimeType: 'application/json', temperature: 0.1 },
+      })
+    : JSON.stringify({
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        response_format: { type: 'json_object' },
+      });
+
   const startTime = performance.now();
   const eventId = telemetryAuditor.recordOutboundDispatch({
     provider,
@@ -439,12 +460,7 @@ async function dispatchAiCall(
     userPrompt,
     systemPrompt,
     schemaColumns,
-    requestBody: {
-      model,
-      user_prompt: userPrompt,
-      system_prompt_length_chars: systemPrompt.length,
-      zero_row_data_guarantee: true,
-    },
+    requestBody: wirePayload,
   });
 
   try {

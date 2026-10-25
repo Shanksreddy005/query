@@ -60,8 +60,10 @@ export const TelemetryAuditorModal: React.FC<TelemetryAuditorModalProps> = ({
         networkTopology: currentEvent.networkTopology,
         rawRowsIncluded: 0,
         schemaAttributes: currentEvent.schemaAttributesIncluded,
-        userPrompt: currentEvent.userPrompt,
-        systemPrompt: currentEvent.systemPrompt,
+        columnCount: currentEvent.columnCount,
+        promptCharCount: currentEvent.promptCharCount,
+        systemPromptCharCount: currentEvent.systemPromptCharCount,
+        payloadSizeBytes: currentEvent.egressPayloadSizeBytes,
       },
       null,
       2
@@ -258,12 +260,15 @@ export const TelemetryAuditorModal: React.FC<TelemetryAuditorModalProps> = ({
                           },
                           request_headers: {
                             "Content-Type": "application/json",
-                            "Authorization": currentEvent.provider === 'gemini' ? "API-Key in URL Query" : "Bearer [REDACTED_BYOK_KEY]"
+                            "Authorization": currentEvent.provider === 'gemini' ? "x-goog-api-key: [REDACTED_BYOK_KEY]" : "Bearer [REDACTED_BYOK_KEY]"
                           },
-                          dispatched_body: {
+                          operational_metadata: {
                             model: currentEvent.model,
-                            user_natural_language_question: currentEvent.userPrompt,
-                            system_schema_grounding: currentEvent.systemPrompt.slice(0, 1200) + (currentEvent.systemPrompt.length > 1200 ? '\n... [System Prompt Continued with Canonical Blueprints]' : '')
+                            prompt_character_count: currentEvent.promptCharCount,
+                            system_character_count: currentEvent.systemPromptCharCount,
+                            schema_column_count: currentEvent.columnCount,
+                            schema_columns: currentEvent.schemaAttributesIncluded,
+                            egress_payload_size_bytes: currentEvent.egressPayloadSizeBytes
                           }
                         },
                         null,

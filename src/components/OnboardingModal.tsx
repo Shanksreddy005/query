@@ -49,6 +49,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
       : DEFAULT_MODELS[currentConfig.provider || 'gemini']
   );
   const [showKey, setShowKey] = useState<boolean>(false);
+  const [rememberKey, setRememberKey] = useState<boolean>(Boolean(currentConfig.rememberKey));
   const [selectedDataset, setSelectedDataset] = useState<Dataset | null>(
     activeDataset || PREBUILT_DATASETS.saas.dataset
   );
@@ -83,7 +84,12 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     try {
       if (provider === 'gemini') {
         const res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models?key=${key.trim()}`
+          'https://generativelanguage.googleapis.com/v1beta/models',
+          {
+            headers: {
+              'x-goog-api-key': key.trim(),
+            },
+          }
         );
         if (!res.ok) throw new Error(`HTTP ${res.status}: Invalid Gemini API key`);
         setTestStatus('success');
@@ -144,6 +150,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
         provider,
         key: key.trim(),
         model: model || DEFAULT_MODELS[provider],
+        rememberKey,
       },
       selectedDataset || undefined
     );
@@ -355,6 +362,19 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                     <span>{testMessage}</span>
                   </div>
                 )}
+
+                {/* Opt-in persistent storage checkbox */}
+                <div className="pt-1.5 border-t border-border-subtle/50 mt-1.5">
+                  <label className="flex items-center gap-2 cursor-pointer text-[11px] text-text-secondary select-none hover:text-text-primary transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={rememberKey}
+                      onChange={(e) => setRememberKey(e.target.checked)}
+                      className="rounded border-border-strong text-accent focus:ring-accent w-3.5 h-3.5"
+                    />
+                    <span>Remember API key in browser (opt-in · unchecked keeps key in volatile session memory only)</span>
+                  </label>
+                </div>
 
                 <p className="text-[10.5px] text-text-muted">
                   Key optional for demo: preloaded datasets support verified queries keyless.

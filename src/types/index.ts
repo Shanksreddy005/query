@@ -118,6 +118,7 @@ export interface ApiKeyConfig {
   key: string;
   model: string;
   useEnvKey?: boolean;
+  rememberKey?: boolean;
 }
 
 export interface HistoryItem {

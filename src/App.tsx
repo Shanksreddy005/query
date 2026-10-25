@@ -9,6 +9,7 @@ import { PREBUILT_DATASETS } from './services/sampleData';
 import { registerDatasetInSql, executeClientSql } from './services/sqlEngine';
 import { processNaturalLanguageQuery, generateDatasetSuggestions } from './services/aiService';
 import { DEFAULT_PROVIDER, DEFAULT_MODELS } from './services/modelRegistry';
+import { loadStoredApiKeyConfig, saveApiKeyConfig } from './services/keyStorage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { QueryInputArea } from './components/QueryInputArea';
@@ -28,14 +29,19 @@ export default function App() {
   const [activeDataset, setActiveDataset] = useState<Dataset | null>(PREBUILT_DATASETS.saas.dataset);
   const [isUploaderOpen, setIsUploaderOpen] = useState<boolean>(false);
 
-  // BYOK Configuration state
-  const [apiKeyConfig, setApiKeyConfig] = useState<ApiKeyConfig>({
-    provider: DEFAULT_PROVIDER,
-    key: '',
-    model: DEFAULT_MODELS[DEFAULT_PROVIDER],
+  // BYOK Configuration state (transient in-memory by default; loads from persistent storage only if user explicitly opted in)
+  const [apiKeyConfig, setApiKeyConfig] = useState<ApiKeyConfig>(() => {
+    const stored = loadStoredApiKeyConfig();
+    if (stored) return stored;
+    return {
+      provider: DEFAULT_PROVIDER,
+      key: '',
+      model: DEFAULT_MODELS[DEFAULT_PROVIDER],
+      rememberKey: false,
+    };
   });
   const [isKeyModalOpen, setIsKeyModalOpen] = useState<boolean>(false);
-  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(true);
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState<boolean>(() => !loadStoredApiKeyConfig()?.key);
   const [isAuditorOpen, setIsAuditorOpen] = useState<boolean>(false);
 
   // Query & Execution state
@@ -248,6 +254,7 @@ export default function App() {
     dataset?: Dataset
   ) => {
     setApiKeyConfig(config);
+    saveApiKeyConfig(config);
     if (dataset) {
       handleSelectDataset(dataset);
     }
@@ -367,7 +374,10 @@ export default function App() {
         isOpen={isKeyModalOpen}
         onClose={() => setIsKeyModalOpen(false)}
         config={apiKeyConfig}
-        onSave={(newConfig) => setApiKeyConfig(newConfig)}
+        onSave={(newConfig) => {
+          setApiKeyConfig(newConfig);
+          saveApiKeyConfig(newConfig);
+        }}
         isDarkMode={isDarkMode}
       />
 
