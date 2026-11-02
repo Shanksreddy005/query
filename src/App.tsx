@@ -1,9 +1,10 @@
+import { generateEvidenceBasedSummary } from './services/summaryEngine';
 /**
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dataset, QueryResult, ApiKeyConfig, HistoryItem, ReasoningStep, OutOfScopeData } from './types';
 import { PREBUILT_DATASETS } from './services/sampleData';
 import { registerDatasetInSql, executeClientSql } from './services/sqlEngine';
@@ -22,6 +23,7 @@ import { TelemetryAuditorModal } from './components/TelemetryAuditorModal';
 import { ShieldCheck, Upload, Database, AlertCircle, FileSpreadsheet, X } from 'lucide-react';
 
 export default function App() {
+  const queryRequestIdRef = useRef<number>(0);
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState<boolean>(true);
 
@@ -96,6 +98,7 @@ export default function App() {
     const q = (queryText !== undefined ? queryText : query).trim();
     if (!q || !activeDataset || isRunning) return;
 
+    const currentRequestId = ++queryRequestIdRef.current;
     setIsRunning(true);
     setExecutionError(null);
     setCurrentStep({ title: 'Semantic Grounding', detail: 'Analyzing question and schema...', status: 'running' });
@@ -169,6 +172,23 @@ export default function App() {
         throw new Error(execResult.error || 'Failed to execute query in local engine.');
       }
 
+      if (currentRequestId !== queryRequestIdRef.current) return;
+
+      const groundedInsight = generateEvidenceBasedSummary({
+        question: q,
+        sql: execResult.sanitizedSql,
+        status: 'verified',
+        rows: execResult.rows,
+        columns: execResult.columns,
+        rowCount: execResult.rowCount,
+        datasetName: activeDataset.name,
+        tableName: activeDataset.tableName,
+        queryPlan: aiResponse.queryPlan,
+        executionTimeMs: execResult.executionTimeMs,
+        passedChecks: aiResponse.passedChecks,
+        llmInsight: aiResponse.insight,
+      });
+
       const newResult: QueryResult = {
         id: `query_${Date.now()}`,
         question: q,
@@ -184,7 +204,7 @@ export default function App() {
           'DuckDB in-memory execution verified',
           'Output row constraints verified',
         ],
-        insight: aiResponse.insight,
+        insight: groundedInsight,
         chartSuggestion: aiResponse.chartSuggestion,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
@@ -204,8 +224,10 @@ export default function App() {
         ...prev.slice(0, 19),
       ]);
     } catch (err: any) {
+      if (currentRequestId !== queryRequestIdRef.current) return;
       console.error('Query execution error:', err);
       setExecutionError(err?.message || 'An unexpected error occurred while executing the query.');
+      setCurrentResult(null);
     } finally {
       setIsRunning(false);
       setCurrentStep(null);
@@ -222,6 +244,18 @@ export default function App() {
         return;
       }
       if (currentResult) {
+        const updatedInsight = generateEvidenceBasedSummary({
+          question: currentResult.question,
+          sql: execResult.sanitizedSql,
+          status: 'verified',
+          rows: execResult.rows,
+          columns: execResult.columns,
+          rowCount: execResult.rowCount,
+          datasetName: activeDataset.name,
+          tableName: activeDataset.tableName,
+          executionTimeMs: execResult.executionTimeMs,
+        });
+
         setCurrentResult({
           ...currentResult,
           sql: execResult.sanitizedSql,
@@ -229,6 +263,7 @@ export default function App() {
           rows: execResult.rows,
           rowCount: execResult.rowCount,
           executionTimeMs: execResult.executionTimeMs,
+          insight: updatedInsight,
         });
       }
     } catch (err: any) {

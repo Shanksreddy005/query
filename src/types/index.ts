@@ -68,23 +68,81 @@ export interface KpiCallout {
   context?: string;
 }
 
+export type AnalyticalCategory =
+  | 'simple_count'
+  | 'total_sum'
+  | 'statistical_aggregation'
+  | 'grouped_comparison'
+  | 'ranking_top_n'
+  | 'filtering_retrieval'
+  | 'time_trend'
+  | 'segmentation'
+  | 'multi_metric'
+  | 'data_quality'
+  | 'unsupported_request';
+
+export interface KeyFinding {
+  finding: string;
+  evidence?: string;
+  importance?: 'low' | 'medium' | 'high';
+}
+
+export interface AnomalyObservation {
+  observation: string;
+  evidence?: string;
+  severity?: 'low' | 'medium' | 'high';
+  type?: 'data_quality' | 'statistical' | 'operational';
+}
+
+export interface BusinessImplication {
+  implication: string;
+  evidence?: string;
+  confidence?: 'low' | 'medium' | 'high';
+}
+
+export interface RecommendedAction {
+  action: string;
+  reason?: string;
+  priority?: 'low' | 'medium' | 'high';
+}
+
 export interface QueryInsight {
+  status?: 'verified' | 'success' | 'empty' | 'error' | 'needs_clarification';
+  category?: AnalyticalCategory;
+  /** Primary concise evidence-first executive overview */
+  overview?: string;
   /** Tight 1-sentence quantitative executive summary */
   executive_summary?: string;
+  /** @deprecated use executive_summary / overview */
+  summary?: string;
+
+  /** Structured and string-array key findings */
+  key_findings?: KeyFinding[];
   /** 2-4 KPI stat cards with actual data values */
   kpi_callouts?: KpiCallout[];
   /** Factual data findings with specific numbers */
   findings?: string[];
-  /** Risk or limitation observations */
-  risks?: string[];
-  /** Concrete recommended action */
-  recommended_action?: string;
-  /** @deprecated use executive_summary */
-  summary?: string;
   /** @deprecated use findings */
   highlights?: string[];
+
+  /** Traceable anomalies and data quality issues */
+  anomalies?: (AnomalyObservation | string)[];
+  critical_anomalies?: string[];
+
+  /** Risk or limitation observations */
+  risks?: string[];
+  /** Traceable business implications */
+  business_implications?: (BusinessImplication | string)[];
   caveats?: string[];
+
+  /** Concrete recommended actions */
+  recommended_actions?: RecommendedAction[];
+  recommended_action?: string;
   recommendedAction?: string;
+  strategic_experiments?: string[];
+
+  /** Analytical limitations and scope constraints */
+  limitations?: string[];
 }
 
 export interface QueryResult {

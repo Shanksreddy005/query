@@ -188,6 +188,24 @@ export function checkMetricAvailability(
     }
   }
 
+  // Predictive / Unsupported metric checks (churn probability, future revenue, cancel forecast)
+  const asksForPrediction = /\b(churn\s+probabilit(y|ies)|predict\b|prediction|forecast|will\s+cancel|propensity)\b/i.test(lowerQ);
+  if (asksForPrediction) {
+    const missing = lowerQ.includes('churn')
+      ? 'churn probability'
+      : lowerQ.includes('revenue')
+      ? 'revenue forecast'
+      : 'predictive cancellation';
+    return {
+      isAvailable: false,
+      missingMetric: missing,
+      clarification:
+        'Dataset "' + schema.datasetName + '" contains historical observational records but does not contain predictive models, forward-looking probabilities, or machine learning labels required for ' + missing + '. To analyze account health deterministically, consider examining current churn_status, support_tickets, or NPS scores.',
+      caveat:
+        'Predictive calculations for ' + missing + ' cannot be established without historical predictive model outputs or multi-period forecasting data.',
+    };
+  }
+
   return { isAvailable: true };
 }
 
