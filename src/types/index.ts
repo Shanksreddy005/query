@@ -135,6 +135,9 @@ export interface QueryInsight {
   business_implications?: (BusinessImplication | string)[];
   caveats?: string[];
 
+  /** Comparative performance breakdown between categories */
+  performance_comparison?: string[];
+
   /** Concrete recommended actions */
   recommended_actions?: RecommendedAction[];
   recommended_action?: string;

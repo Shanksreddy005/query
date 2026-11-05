@@ -18,6 +18,7 @@ export interface InsightsPayload extends Partial<QueryInsight> {
   highlights?: string[];
   caveats?: string[];
   recommendedAction?: string;
+  performance_comparison?: string[];
 }
 
 export interface BriefingProps {
@@ -61,16 +62,20 @@ export function ExecutiveBriefing({ insightsPayload, isDarkMode = true }: Briefi
   }
   const findings = rawFindings.filter(isCleanText);
 
-  // 3. Anomalies: only verified data issues (NEVER default to static boilerplate or highlights)
+  // 3. Performance Comparison: comparative breakdown across categories
+  const rawComparisons = insightsPayload.performance_comparison || [];
+  const comparisons = rawComparisons.filter(isCleanText);
+
+  // 4. Anomalies: only verified data issues (NEVER default to static boilerplate or highlights)
   let rawAnomalies: string[] = [];
   if (insightsPayload.anomalies && insightsPayload.anomalies.length > 0) {
-    rawAnomalies = insightsPayload.anomalies.map((a) => (typeof a === "string" ? a : a.observation));
+    rawAnomalies = insightsPayload.anomalies.map((a) => (typeof a === 'string' ? a : a.observation));
   } else if (insightsPayload.critical_anomalies && insightsPayload.critical_anomalies.length > 0) {
     rawAnomalies = insightsPayload.critical_anomalies;
   }
   const anomalies = rawAnomalies.filter(isCleanText);
 
-  // 4. Business Implications: grounded observations only
+  // 5. Business Implications: grounded observations only
   let rawImplications: string[] = [];
   if (insightsPayload.business_implications && insightsPayload.business_implications.length > 0) {
     rawImplications = insightsPayload.business_implications.map((i) =>
@@ -83,7 +88,7 @@ export function ExecutiveBriefing({ insightsPayload, isDarkMode = true }: Briefi
   }
   const implications = rawImplications.filter(isCleanText);
 
-  // 5. Recommended Actions: strictly optional and context-aware
+  // 6. Recommended Actions: strictly optional and context-aware
   let rawActions: string[] = [];
   if (insightsPayload.recommended_actions && insightsPayload.recommended_actions.length > 0) {
     rawActions = insightsPayload.recommended_actions.map((a) => a.action);
@@ -96,10 +101,11 @@ export function ExecutiveBriefing({ insightsPayload, isDarkMode = true }: Briefi
   }
   const actions = rawActions.filter(isCleanText);
 
-  // 6. Limitations: analytical boundaries
+  // 7. Limitations: analytical boundaries
   const limitations = (insightsPayload.limitations || []).filter(isCleanText);
 
   const hasFindings = findings.length > 0;
+  const hasComparisons = comparisons.length > 0;
   const hasAnomalies = anomalies.length > 0;
   const hasImplications = implications.length > 0;
   const hasActions = actions.length > 0;
@@ -136,6 +142,23 @@ export function ExecutiveBriefing({ insightsPayload, isDarkMode = true }: Briefi
             </h5>
             <ul className="space-y-1.5">
               {findings.map((item, idx) => (
+                <li key={idx} className="text-xs text-text-secondary leading-relaxed flex items-start gap-2">
+                  <span className="text-accent font-bold mt-0.5">•</span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Performance Comparison (adaptive: displayed when comparative breakdown exists) */}
+        {hasComparisons && (
+          <div className="space-y-2 pt-1 bg-surface/40 border border-border-subtle p-3.5 rounded-lg">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-text-secondary flex items-center gap-1.5">
+              <span>⚖️ Performance Comparison</span>
+            </h5>
+            <ul className="space-y-1.5">
+              {comparisons.map((item, idx) => (
                 <li key={idx} className="text-xs text-text-secondary leading-relaxed flex items-start gap-2">
                   <span className="text-accent font-bold mt-0.5">•</span>
                   <span>{item}</span>
