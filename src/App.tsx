@@ -174,6 +174,26 @@ export default function App() {
 
       if (currentRequestId !== queryRequestIdRef.current) return;
 
+      let multiOutputs: any = undefined;
+      const isRevenueConcentrationUnion =
+        execResult.columns.includes('group_type') &&
+        execResult.rows.some((r) => String(r.group_type).toLowerCase() === 'segment') &&
+        execResult.rows.some((r) => String(r.group_type).toLowerCase().includes('channel'));
+
+      if (isRevenueConcentrationUnion) {
+        try {
+          const custSql = `SELECT customer_id, customer_name, segment, acquisition_channel, mrr_usd, ROW_NUMBER() OVER (ORDER BY mrr_usd DESC, customer_id ASC) AS rank, ROUND(100.0 * mrr_usd / (SELECT SUM(mrr_usd) FROM ${activeDataset.tableName}), 2) AS revenue_share_pct FROM ${activeDataset.tableName} ORDER BY mrr_usd DESC, customer_id ASC;`;
+          const custResult = await executeClientSql(custSql, activeDataset);
+          if (custResult.success) {
+            multiOutputs = {
+              concentration: { rows: custResult.rows, columns: custResult.columns, sql: custSql },
+            };
+          }
+        } catch (err) {
+          console.warn('[QueryMind] Customer concentration subquery failed:', err);
+        }
+      }
+
       const groundedInsight = generateEvidenceBasedSummary({
         question: q,
         sql: execResult.sanitizedSql,
@@ -187,6 +207,7 @@ export default function App() {
         executionTimeMs: execResult.executionTimeMs,
         passedChecks: aiResponse.passedChecks,
         llmInsight: aiResponse.insight,
+        multiQueryOutputs: multiOutputs,
       });
 
       const newResult: QueryResult = {
@@ -244,6 +265,26 @@ export default function App() {
         return;
       }
       if (currentResult) {
+        let multiOutputs: any = undefined;
+        const isRevenueConcentrationUnion =
+          execResult.columns.includes('group_type') &&
+          execResult.rows.some((r) => String(r.group_type).toLowerCase() === 'segment') &&
+          execResult.rows.some((r) => String(r.group_type).toLowerCase().includes('channel'));
+
+        if (isRevenueConcentrationUnion) {
+          try {
+            const custSql = `SELECT customer_id, customer_name, segment, acquisition_channel, mrr_usd, ROW_NUMBER() OVER (ORDER BY mrr_usd DESC, customer_id ASC) AS rank, ROUND(100.0 * mrr_usd / (SELECT SUM(mrr_usd) FROM ${activeDataset.tableName}), 2) AS revenue_share_pct FROM ${activeDataset.tableName} ORDER BY mrr_usd DESC, customer_id ASC;`;
+            const custResult = await executeClientSql(custSql, activeDataset);
+            if (custResult.success) {
+              multiOutputs = {
+                concentration: { rows: custResult.rows, columns: custResult.columns, sql: custSql },
+              };
+            }
+          } catch (err) {
+            console.warn('[QueryMind] Customer concentration subquery failed on update:', err);
+          }
+        }
+
         const updatedInsight = generateEvidenceBasedSummary({
           question: currentResult.question,
           sql: execResult.sanitizedSql,
@@ -254,6 +295,7 @@ export default function App() {
           datasetName: activeDataset.name,
           tableName: activeDataset.tableName,
           executionTimeMs: execResult.executionTimeMs,
+          multiQueryOutputs: multiOutputs,
         });
 
         setCurrentResult({

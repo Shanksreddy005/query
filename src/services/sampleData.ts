@@ -147,6 +147,47 @@ export const ECOMMERCE_SALES_DATA: Record<string, any>[] = [
   { order_id: 'ORD-7015', customer_name: 'Brittany Brooks', region: 'South', category: 'Office Supplies', product: 'Ergonomic Desk Organizers', sales: 110, quantity: 3, discount_pct: 0.10, profit: 28, order_date: '2024-03-10' },
 ];
 
+// 3. SaaS Customer Portfolio (Executive 30 Dataset - 11 columns, 30 rows, $23,200 total MRR)
+export const EXECUTIVE_SAAS_30_DATA: Record<string, any>[] = [
+  // Enterprise (7 customers, total: $14,000, avg: $2,000.00)
+  { customer_id: 'C001', customer_name: 'Aster Labs', segment: 'Enterprise', city: 'Bangalore', plan: 'Enterprise Plus', mrr_usd: 2000, signup_date: '2023-01-10', subscription_status: 'Active', support_tickets: 2, usage_pct: 88, acquisition_channel: 'Organic' },
+  { customer_id: 'C002', customer_name: 'Apex Global', segment: 'Enterprise', city: 'Chennai', plan: 'Enterprise', mrr_usd: 1700, signup_date: '2023-01-15', subscription_status: 'Active', support_tickets: 1, usage_pct: 90, acquisition_channel: 'Referral' },
+  { customer_id: 'C003', customer_name: 'Cedar Works', segment: 'Enterprise', city: 'Hyderabad', plan: 'Enterprise Plus', mrr_usd: 2200, signup_date: '2023-02-01', subscription_status: 'Active', support_tickets: 2, usage_pct: 92, acquisition_channel: 'Referral' },
+  { customer_id: 'C004', customer_name: 'Beacon Health', segment: 'Enterprise', city: 'Chennai', plan: 'Enterprise', mrr_usd: 1600, signup_date: '2023-02-10', subscription_status: 'Active', support_tickets: 0, usage_pct: 85, acquisition_channel: 'Partner' },
+  { customer_id: 'C005', customer_name: 'Evergreen Group', segment: 'Enterprise', city: 'Bangalore', plan: 'Enterprise Plus', mrr_usd: 2500, signup_date: '2023-02-20', subscription_status: 'Active', support_tickets: 1, usage_pct: 95, acquisition_channel: 'Partner' },
+  { customer_id: 'C026', customer_name: 'Zenith Labs', segment: 'Enterprise', city: 'Hyderabad', plan: 'Enterprise', mrr_usd: 2100, signup_date: '2023-03-05', subscription_status: 'Active', support_tickets: 1, usage_pct: 94, acquisition_channel: 'Referral' },
+  { customer_id: 'C030', customer_name: 'Dynamo Group', segment: 'Enterprise', city: 'Mumbai', plan: 'Enterprise', mrr_usd: 1900, signup_date: '2023-03-12', subscription_status: 'Active', support_tickets: 2, usage_pct: 82, acquisition_channel: 'Paid Search' },
+
+  // Mid-Market (6 customers, total: $6,150, avg: $1,025.00)
+  { customer_id: 'C006', customer_name: 'Quantum Systems', segment: 'Mid-Market', city: 'Hyderabad', plan: 'Business', mrr_usd: 1500, signup_date: '2023-03-15', subscription_status: 'Active', support_tickets: 4, usage_pct: 108, acquisition_channel: 'Partner' },
+  { customer_id: 'C007', customer_name: 'Hyperion Corp', segment: 'Mid-Market', city: 'Bangalore', plan: 'Business', mrr_usd: 1100, signup_date: '2023-03-20', subscription_status: 'Active', support_tickets: 2, usage_pct: 75, acquisition_channel: 'Organic' },
+  { customer_id: 'C008', customer_name: 'Vortex Data', segment: 'Mid-Market', city: 'Chennai', plan: 'Business', mrr_usd: 1100, signup_date: '2023-03-25', subscription_status: 'Active', support_tickets: 1, usage_pct: 70, acquisition_channel: 'Outbound' },
+  { customer_id: 'C009', customer_name: 'Starlight Media', segment: 'Mid-Market', city: 'Delhi', plan: 'Business', mrr_usd: 900, signup_date: '2023-04-01', subscription_status: 'Cancelled', support_tickets: 5, usage_pct: 35, acquisition_channel: 'Referral' },
+  { customer_id: 'C010', customer_name: 'BlueSky Retail', segment: 'Mid-Market', city: 'Mumbai', plan: 'Business', mrr_usd: 800, signup_date: '2023-04-10', subscription_status: 'Active', support_tickets: 0, usage_pct: 68, acquisition_channel: 'Organic' },
+  { customer_id: 'C011', customer_name: 'PrimeCommerce', segment: 'Mid-Market', city: 'Delhi', plan: 'Business', mrr_usd: 750, signup_date: '2023-04-15', subscription_status: 'Cancelled', support_tickets: 6, usage_pct: 25, acquisition_channel: 'Paid Search' },
+
+  // SMB (9 customers, total: $1,950, avg: $216.67)
+  { customer_id: 'C012', customer_name: 'Nova Retail', segment: 'SMB', city: 'Chennai', plan: 'Growth', mrr_usd: 350, signup_date: '2023-04-20', subscription_status: 'Active', support_tickets: 1, usage_pct: 60, acquisition_channel: 'Outbound' },
+  { customer_id: 'C013', customer_name: 'SwiftFlow', segment: 'SMB', city: 'Hyderabad', plan: 'Growth', mrr_usd: 300, signup_date: '2023-04-25', subscription_status: 'Active', support_tickets: 1, usage_pct: 65, acquisition_channel: 'Partner' },
+  { customer_id: 'C014', customer_name: 'DataSync Pro', segment: 'SMB', city: 'Bangalore', plan: 'Growth', mrr_usd: 250, signup_date: '2023-05-01', subscription_status: 'Active', support_tickets: 0, usage_pct: 72, acquisition_channel: 'Referral' },
+  { customer_id: 'C015', customer_name: 'OrbitScale', segment: 'SMB', city: 'Mumbai', plan: 'Growth', mrr_usd: 250, signup_date: '2023-05-05', subscription_status: 'Active', support_tickets: 1, usage_pct: 70, acquisition_channel: 'Paid Search' },
+  { customer_id: 'C016', customer_name: 'AlphaStream', segment: 'SMB', city: 'Mumbai', plan: 'Growth', mrr_usd: 200, signup_date: '2023-05-10', subscription_status: 'Active', support_tickets: 0, usage_pct: 55, acquisition_channel: 'Organic' },
+  { customer_id: 'C017', customer_name: 'PulseMetrics', segment: 'SMB', city: 'Bangalore', plan: 'Growth', mrr_usd: 200, signup_date: '2023-05-15', subscription_status: 'Active', support_tickets: 2, usage_pct: 64, acquisition_channel: 'Paid Search' },
+  { customer_id: 'C018', customer_name: 'Ironclad Tech', segment: 'SMB', city: 'Delhi', plan: 'Growth', mrr_usd: 150, signup_date: '2023-05-20', subscription_status: 'Cancelled', support_tickets: 4, usage_pct: 20, acquisition_channel: 'Outbound' },
+  { customer_id: 'C019', customer_name: 'FreshScale', segment: 'SMB', city: 'Delhi', plan: 'Growth', mrr_usd: 150, signup_date: '2023-05-25', subscription_status: 'Active', support_tickets: 0, usage_pct: 50, acquisition_channel: 'Organic' },
+  { customer_id: 'C020', customer_name: 'CargoNet', segment: 'SMB', city: 'Delhi', plan: 'Growth', mrr_usd: 100, signup_date: '2023-06-01', subscription_status: 'Cancelled', support_tickets: 5, usage_pct: 15, acquisition_channel: 'Paid Search' },
+
+  // Startup (8 customers, total: $1,100, avg: $137.50)
+  { customer_id: 'C021', customer_name: 'SparkCloud', segment: 'Startup', city: 'Bangalore', plan: 'Starter', mrr_usd: 250, signup_date: '2023-06-05', subscription_status: 'Active', support_tickets: 0, usage_pct: 62, acquisition_channel: 'Outbound' },
+  { customer_id: 'C022', customer_name: 'Krypton AI', segment: 'Startup', city: 'Chennai', plan: 'Starter', mrr_usd: 250, signup_date: '2023-06-10', subscription_status: 'Active', support_tickets: 1, usage_pct: 70, acquisition_channel: 'Paid Search' },
+  { customer_id: 'C023', customer_name: 'NexusLogix', segment: 'Startup', city: 'Mumbai', plan: 'Starter', mrr_usd: 150, signup_date: '2023-06-15', subscription_status: 'Active', support_tickets: 0, usage_pct: 54, acquisition_channel: 'Paid Search' },
+  { customer_id: 'C024', customer_name: 'CloudCraft', segment: 'Startup', city: 'Chennai', plan: 'Starter', mrr_usd: 150, signup_date: '2023-06-20', subscription_status: 'Active', support_tickets: 0, usage_pct: 50, acquisition_channel: 'Partner' },
+  { customer_id: 'C025', customer_name: 'BlueSky Labs', segment: 'Startup', city: 'Hyderabad', plan: 'Starter', mrr_usd: 100, signup_date: '2023-06-25', subscription_status: 'Active', support_tickets: 0, usage_pct: 60, acquisition_channel: 'Referral' },
+  { customer_id: 'C027', customer_name: 'TrendLogic', segment: 'Startup', city: 'Delhi', plan: 'Starter', mrr_usd: 80, signup_date: '2023-07-01', subscription_status: 'Cancelled', support_tickets: 4, usage_pct: 22, acquisition_channel: 'Organic' },
+  { customer_id: 'C028', customer_name: 'AeroWave', segment: 'Startup', city: 'Chennai', plan: 'Starter', mrr_usd: 70, signup_date: '2023-07-05', subscription_status: 'Active', support_tickets: 1, usage_pct: 58, acquisition_channel: 'Organic' },
+  { customer_id: 'C029', customer_name: 'InnoTech', segment: 'Startup', city: 'Hyderabad', plan: 'Starter', mrr_usd: 50, signup_date: '2023-07-10', subscription_status: 'Active', support_tickets: 0, usage_pct: 45, acquisition_channel: 'Referral' },
+];
+
 export const PREBUILT_DATASETS: Record<string, { dataset: Dataset; promptSuggestions: string[] }> = {
   saas: {
     dataset: inferDatasetSchema(SAAS_CUSTOMERS_DATA, 'customers', 'SaaS Customer Retention & MRR'),
@@ -156,6 +197,17 @@ export const PREBUILT_DATASETS: Record<string, { dataset: Dataset; promptSuggest
       'Which customers are At-Risk or Churned with NPS score under 6?',
       'Show total MRR and active users by industry ordered by revenue',
       'List all Enterprise customers active with over 200 users and 0-3 tickets',
+    ],
+  },
+  saas_executive: {
+    dataset: inferDatasetSchema(EXECUTIVE_SAAS_30_DATA, 'customers', 'SaaS Customer Portfolio (Executive 30)'),
+    promptSuggestions: [
+      'Compare customer segments: total MRR, customer count, and average MRR',
+      'What is the acquisition channel performance by total MRR and average MRR?',
+      'Show geographic contribution: active customer count, active MRR, and active percentage by city',
+      'Identify accounts requiring attention based on high support tickets (>3) or usage over capacity (>100%)',
+      'What is the customer concentration: top 1, top 3, and top 5 revenue shares?',
+      'Provide a comprehensive executive review across segments, channels, geography, and operational risk',
     ],
   },
   ecommerce: {
@@ -169,3 +221,4 @@ export const PREBUILT_DATASETS: Record<string, { dataset: Dataset; promptSuggest
     ],
   },
 };
+

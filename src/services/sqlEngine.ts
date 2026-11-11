@@ -43,6 +43,8 @@ export async function terminateDuckDBWorker(): Promise<void> {
   connInstance = null;
   initPromise = null;
   registeredDatasetCacheKey = null;
+  activeRegistrationPromise = null;
+  activeRegisteringKey = null;
 }
 
 /**
@@ -86,6 +88,8 @@ export async function getDuckDB() {
 }
 
 let registeredDatasetCacheKey: string | null = null;
+let activeRegistrationPromise: Promise<void> | null = null;
+let activeRegisteringKey: string | null = null;
 const DEFAULT_QUERY_TIMEOUT_MS = 15000;
 const MAX_RESULT_ROWS = 5000;
 
@@ -102,7 +106,7 @@ export interface ExecutionOutput {
 
 /**
  * Registers a dataset as an in-memory SQL table in DuckDB.
- * Uses smart caching to avoid expensive JSON serialization and re-registration on subsequent queries.
+ * Uses mutex lock and smart caching to avoid race conditions and expensive JSON serialization.
  */
 export async function registerDatasetInSql(dataset: Dataset): Promise<void> {
   const currentKey = `${dataset.id}_${dataset.rowCount}_${dataset.columns.length}`;
@@ -110,26 +114,40 @@ export async function registerDatasetInSql(dataset: Dataset): Promise<void> {
     return; // Already registered and up to date
   }
 
-  try {
-    const { db, conn } = await getDuckDB();
-    const tableName = dataset.tableName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    
-    // Clear previous definitions
-    try {
-      await conn.query(`DROP TABLE IF EXISTS "${tableName}"`);
-      await conn.query(`DROP TABLE IF EXISTS "dataset"`);
-    } catch {}
-
-    const jsonStr = JSON.stringify(dataset.data);
-    const virtualFilename = `data_${Date.now()}.json`;
-    await db.registerFileText(virtualFilename, jsonStr);
-
-    await conn.query(`CREATE OR REPLACE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${virtualFilename}')`);
-    await conn.query(`CREATE OR REPLACE TABLE "dataset" AS SELECT * FROM "${tableName}"`);
-    registeredDatasetCacheKey = currentKey;
-  } catch (err: any) {
-    console.error('Failed to register dataset in DuckDB:', err);
+  // If a registration for this dataset is currently underway, await the active promise
+  if (activeRegistrationPromise && activeRegisteringKey === currentKey) {
+    return activeRegistrationPromise;
   }
+
+  activeRegisteringKey = currentKey;
+  activeRegistrationPromise = (async () => {
+    try {
+      const { db, conn } = await getDuckDB();
+      const tableName = dataset.tableName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      
+      // Clear previous definitions
+      try {
+        await conn.query(`DROP VIEW IF EXISTS "dataset"`);
+        await conn.query(`DROP TABLE IF EXISTS "dataset"`);
+        await conn.query(`DROP TABLE IF EXISTS "${tableName}"`);
+      } catch {}
+
+      const jsonStr = JSON.stringify(dataset.data);
+      const virtualFilename = `data_${Date.now()}.json`;
+      await db.registerFileText(virtualFilename, jsonStr);
+
+      await conn.insertJSONFromPath(virtualFilename, { name: tableName, create: true });
+      await conn.query(`CREATE OR REPLACE VIEW "dataset" AS SELECT * FROM "${tableName}"`);
+      registeredDatasetCacheKey = currentKey;
+    } catch (err: any) {
+      console.error('Failed to register dataset in DuckDB:', err);
+    } finally {
+      activeRegistrationPromise = null;
+      activeRegisteringKey = null;
+    }
+  })();
+
+  return activeRegistrationPromise;
 }
 
 /**

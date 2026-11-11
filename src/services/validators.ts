@@ -161,13 +161,15 @@ export function checkMetricAvailability(
       c.name.toLowerCase().includes('lost_mrr') || c.name.toLowerCase().includes('lost_revenue')
     );
     if (!hasExplicitLostCol) {
+      const mrrCol = schema.columns.find((c) => c.name.toLowerCase().includes('mrr'))?.name || 'mrr';
+      const statusCol = schema.columns.find((c) => c.name.toLowerCase().includes('status') || c.name.toLowerCase().includes('churn'))?.name || 'status';
       return {
         isAvailable: false,
         missingMetric: 'lost MRR',
         clarification:
-          'The dataset contains current MRR ("mrr") and lifecycle status ("churn_status"), but does not contain a dedicated "lost MRR" measure. To avoid silent metric substitution, please clarify whether you wish to analyze current MRR for churned accounts (churn_status = \'Churned\') or another definition.',
+          `The dataset contains current revenue ("${mrrCol}") and lifecycle status ("${statusCol}"), but does not contain a dedicated "lost MRR" measure. To avoid silent metric substitution, please clarify whether you wish to analyze current revenue for churned/inactive accounts (${statusCol} = 'Churned') or another definition.`,
         caveat:
-          'The dataset contains current MRR but does not provide a separate lost-MRR measure.',
+          `The dataset contains current revenue ("${mrrCol}") but does not provide a separate lost-MRR measure.`,
       };
     }
   }
@@ -196,13 +198,32 @@ export function checkMetricAvailability(
       : lowerQ.includes('revenue')
       ? 'revenue forecast'
       : 'predictive cancellation';
+
+    // Strictly ground alternatives in actual columns present in active schema
+    const availableAlternatives: string[] = [];
+    const statusCol = schema.columns.find((c) => c.name.toLowerCase().includes('status') || c.name.toLowerCase().includes('churn'));
+    const ticketCol = schema.columns.find((c) => c.name.toLowerCase().includes('ticket'));
+    const usageCol = schema.columns.find((c) => c.name.toLowerCase().includes('usage'));
+    const npsCol = schema.columns.find((c) => c.name.toLowerCase().includes('nps'));
+    const mrrCol = schema.columns.find((c) => c.name.toLowerCase().includes('mrr'));
+
+    if (statusCol) availableAlternatives.push(statusCol.name);
+    if (ticketCol) availableAlternatives.push(ticketCol.name);
+    if (usageCol) availableAlternatives.push(usageCol.name);
+    if (npsCol) availableAlternatives.push(npsCol.name);
+    if (mrrCol) availableAlternatives.push(mrrCol.name);
+
+    const alternativesText = availableAlternatives.length > 0
+      ? `To analyze account health deterministically, consider examining available fields: ${availableAlternatives.join(', ')}.`
+      : 'To analyze account health deterministically, examine the observational fields present in your table.';
+
     return {
       isAvailable: false,
       missingMetric: missing,
       clarification:
-        'Dataset "' + schema.datasetName + '" contains historical observational records but does not contain predictive models, forward-looking probabilities, or machine learning labels required for ' + missing + '. To analyze account health deterministically, consider examining current churn_status, support_tickets, or NPS scores.',
+        `Dataset "${schema.datasetName}" contains historical observational records but does not contain predictive models, forward-looking probabilities, or machine learning labels required for ${missing}. ${alternativesText}`,
       caveat:
-        'Predictive calculations for ' + missing + ' cannot be established without historical predictive model outputs or multi-period forecasting data.',
+        `Predictive calculations for ${missing} cannot be established without historical predictive model outputs or multi-period forecasting data.`,
     };
   }
 

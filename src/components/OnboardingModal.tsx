@@ -84,7 +84,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
     try {
       if (provider === 'gemini') {
         const res = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models',
+          '/api/gemini/verify-key',
           {
             headers: {
               'x-goog-api-key': key.trim(),
@@ -377,7 +377,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 </div>
 
                 <p className="text-[10.5px] text-text-muted">
-                  Key optional for demo: preloaded datasets support verified queries keyless.
+                  Gemini API is active on server: all datasets and queries work immediately without an API key. Custom BYOK is optional.
                 </p>
               </div>
 

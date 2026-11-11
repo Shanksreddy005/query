@@ -79,6 +79,10 @@ export type AnalyticalCategory =
   | 'segmentation'
   | 'multi_metric'
   | 'data_quality'
+  | 'operational_risk'
+  | 'customer_concentration'
+  | 'revenue_concentration'
+  | 'multi_query_executive'
   | 'unsupported_request';
 
 export interface KeyFinding {
@@ -102,6 +106,10 @@ export interface BusinessImplication {
 
 export interface RecommendedAction {
   action: string;
+  evidence?: string;
+  issue?: string;
+  recommendation?: string;
+  metric_to_monitor?: string;
   reason?: string;
   priority?: 'low' | 'medium' | 'high';
 }

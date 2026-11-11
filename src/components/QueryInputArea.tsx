@@ -1,8 +1,9 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { QueryMindLogo } from './QueryMindLogo';
-import { Play, Sparkles, Loader2 } from 'lucide-react';
+import { Play, Sparkles, Loader2, Mic, MicOff, Volume2 } from 'lucide-react';
 import { Dataset, ReasoningStep } from '../types';
 import { PREBUILT_DATASETS } from '../services/sampleData';
+import { liveVoiceService } from '../services/liveService';
 
 interface QueryInputAreaProps {
   query: string;
@@ -26,6 +27,23 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
   isDarkMode,
 }) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [liveStatus, setLiveStatus] = useState<'disconnected' | 'connecting' | 'connected' | 'speaking' | 'error'>('disconnected');
+
+  const toggleLiveVoice = async () => {
+    if (liveStatus === 'connected' || liveStatus === 'speaking' || liveStatus === 'connecting') {
+      liveVoiceService.disconnect();
+      setLiveStatus('disconnected');
+    } else {
+      await liveVoiceService.connect({
+        onStatusChange: (status) => setLiveStatus(status),
+        onTranscript: (text, isModel) => {
+          if (!isModel) {
+            onChangeQuery(text);
+          }
+        },
+      });
+    }
+  };
 
   // Auto-resize textarea height
   useEffect(() => {
@@ -204,6 +222,38 @@ export const QueryInputArea: React.FC<QueryInputAreaProps> = ({
                 className="btn-interactive text-xs text-text-muted hover:text-text-primary px-2 py-1 rounded transition-colors duration-fast focus-visible:outline-none"
               >
                 Clear
+              </button>
+            )}
+
+            {liveVoiceService.isSupported() && (
+              <button
+                type="button"
+                onClick={toggleLiveVoice}
+                title={
+                  liveStatus === 'connected' || liveStatus === 'speaking'
+                    ? 'Gemini Live Voice Active · Click to disconnect'
+                    : 'Speak with Gemini Live Voice Assistant'
+                }
+                className={`btn-interactive flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-fast ${
+                  liveStatus === 'connected' || liveStatus === 'speaking'
+                    ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold'
+                    : 'border-border bg-surface-secondary text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {liveStatus === 'speaking' ? (
+                  <Volume2 className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                ) : liveStatus === 'connected' ? (
+                  <Mic className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                ) : (
+                  <Mic className="w-3.5 h-3.5 text-text-muted" />
+                )}
+                <span className="hidden sm:inline">
+                  {liveStatus === 'speaking'
+                    ? 'Speaking…'
+                    : liveStatus === 'connected'
+                    ? 'Listening…'
+                    : 'Voice'}
+                </span>
               </button>
             )}
 

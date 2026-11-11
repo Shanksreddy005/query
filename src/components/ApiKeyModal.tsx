@@ -74,7 +74,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
     try {
       if (provider === 'gemini') {
         const res = await fetch(
-          'https://generativelanguage.googleapis.com/v1beta/models',
+          '/api/gemini/verify-key',
           {
             headers: {
               'x-goog-api-key': key.trim(),
@@ -181,9 +181,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             <div className="space-y-1">
               <span className="font-semibold block text-text-primary">100% Client-Side Privacy Guarantee</span>
               <p className="text-text-secondary leading-relaxed text-[11.5px]">
-                • <strong>Session-Only Memory:</strong> Your API key is held exclusively in memory and never stored persistently or sent to any proxy backend.<br />
+                • <strong>Server-Backed or BYOK:</strong> Gemini AI runs automatically via backend proxy out-of-the-box. Providing a custom API key is optional.<br />
                 • <strong>Local DuckDB Engine:</strong> Your dataset is parsed and queried in-memory via DuckDB-WASM.<br />
-                • <strong>No Data Ingestion:</strong> Datasets are never uploaded to the AI; only schema and minimal column statistics are used for semantic planning.
+                • <strong>No Data Ingestion:</strong> Raw dataset rows remain strictly local in your browser; only table schemas are used for SQL planning.
               </p>
             </div>
           </div>
